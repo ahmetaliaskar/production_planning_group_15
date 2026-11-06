@@ -82,7 +82,8 @@ aggregate_data_ui <- function(id) {
       )
     ),
     mainPanel(
-      h4(textOutput(ns("k_text"))),
+      div(class = "result-title", "Data and costs"),
+      uiOutput(ns("data_kpis")),
       plotOutput(ns("demand_plot"), height = "300px"),
       h4("Data used by the Aggregate Planning tabs"),
       tableOutput(ns("data_table"))
@@ -153,7 +154,14 @@ aggregate_data_server <- function(id) {
                         sub = num(input$c_sub)))
     })
 
-    output$k_text <- renderText(paste0("K = ", round(K(), 5), " units per worker per day"))
+    output$data_kpis <- renderUI({
+      a <- tryCatch(ap(), error = function(e) NULL)
+      div(class = "kpi-row",
+          kpi_tile("K (units / worker / day)", fmt_num(K(), 5)),
+          kpi_tile("Periods", if (is.null(a)) "-" else length(a$Dnet)),
+          kpi_tile("Total net demand", if (is.null(a)) "-" else fmt_num(sum(a$Dnet), 0)),
+          kpi_tile("Starting workforce", fmt_num(num(input$W0), 0)))
+    })
 
     output$data_table <- renderTable({
       a <- ap()
@@ -165,9 +173,16 @@ aggregate_data_server <- function(id) {
 
     output$demand_plot <- renderPlot({
       a <- ap()
-      barplot(a$Dnet, names.arg = a$periods, col = "#9DB4CF", border = NA,
-              ylab = "Units", main = "Net demand by period")
-    })
+      plot_setup(mar = c(3, 5.2, 2.6, 1))
+      yr <- c(min(0, a$Dnet), max(a$Dnet) * 1.08)
+      bp <- barplot(a$Dnet, plot = FALSE)
+      plot_frame(range(bp) + c(-0.7, 0.7), yr, ylab = "Units", xaxt = "n",
+                 main = "Net demand by period")
+      barplot(a$Dnet, names.arg = a$periods, col = app_colors$series[1], border = "white",
+              add = TRUE, axes = FALSE, width = 1, space = 0.2, cex.names = 0.85,
+              col.axis = app_colors$ink_2)
+      text(bp, a$Dnet, fmt_num(a$Dnet, 0), pos = 3, cex = 0.78, col = app_colors$ink_2, xpd = TRUE)
+    }, bg = "white", res = 96)
 
     ap
   })
@@ -249,9 +264,10 @@ is_whole <- function(x) all(abs(x - round(x)) < 1e-6)
 
 ap_results_ui <- function(ns) {
   tagList(
-    h4(textOutput(ns("headline"))),
-    p(textOutput(ns("note"))),
-    plotOutput(ns("cum_plot"), height = "320px"),
+    div(class = "result-title", textOutput(ns("headline"), inline = TRUE)),
+    uiOutput(ns("kpis")),
+    p(class = "result-note", textOutput(ns("note"), inline = TRUE)),
+    plotOutput(ns("cum_plot"), height = "340px"),
     h4("Cost of each item"),
     tableOutput(ns("cost_table")),
     h4(textOutput(ns("plan_title_1"))),
@@ -272,12 +288,24 @@ ap_display_plan <- function(plan) {
 }
 
 render_ap_results <- function(output, ap, result) {
-  output$headline <- renderText({
-    r <- result()
-    tot <- vapply(r$plans, function(p) ap_costs(p, ap())[["Total"]], numeric(1))
-    paste0(r$title, "  -  total cost: ",
-           paste(paste0(names(tot), " ", format(round(tot, 2), big.mark = ",")),
-                 collapse = "  |  "))
+  output$headline <- renderText(result()$title)
+
+  output$kpis <- renderUI({
+    a <- tryCatch(ap(), error = function(e) NULL)
+    if (is.null(a)) {
+      return(empty_state("No plan yet.",
+                         "Upload the demand data in the 'Data and Costs' tab; every plan uses it."))
+    }
+    r <- tryCatch(result(), error = function(e) NULL)
+    if (is.null(r)) return(NULL)                          # the message is shown below
+    tiles <- lapply(names(r$plans), function(nm) {
+      p <- r$plans[[nm]]
+      kpi_tile(paste("Total cost -", nm), fmt_num(ap_costs(p, a)[["Total"]]),
+               paste0("Workers ", fmt_num(min(p$Workers), 1), " - ", fmt_num(max(p$Workers), 1),
+                      "  |  hired ", fmt_num(sum(p$Hired), 1),
+                      ", fired ", fmt_num(sum(p$Fired), 1)))
+    })
+    div(class = "kpi-row", tiles)
   })
 
   output$note <- renderText({
@@ -291,22 +319,23 @@ render_ap_results <- function(output, ap, result) {
   output$cum_plot <- renderPlot({
     r <- result(); a <- ap()
     Tn <- length(a$Dnet)
-    cols <- c("#2F6FB0", "#B4501E")
+    cols <- app_colors$series[1:2]
     ys <- c(0, cumsum(a$Dnet), unlist(lapply(r$plans, function(p) p[["Cum. production"]])))
-    plot(0:Tn, c(0, cumsum(a$Dnet)), type = "o", pch = 19, col = "grey30", lwd = 2,
-         ylim = range(ys), xaxt = "n", xlab = "Period",
-         ylab = "Cumulative units",
-         main = "Cumulative production vs cumulative net demand")
-    axis(1, at = 0:Tn, labels = c("Start", a$periods))
+    yr <- range(ys); yr[2] <- yr[2] + 0.05 * diff(yr)
+    plot_setup(mar = c(4, 5.2, 2.6, 1))
+    plot_frame(c(0, Tn), yr, xlab = "", ylab = "Cumulative units", xaxt = "n")
+    axis(1, at = 0:Tn, labels = c("Start", a$periods), lwd = 0, lwd.ticks = 1)
+    lines(0:Tn, c(0, cumsum(a$Dnet)), col = app_colors$ink_2, lwd = 2.5)
+    points(0:Tn, c(0, cumsum(a$Dnet)), pch = 16, col = app_colors$ink_2, cex = 0.9)
     for (i in seq_along(r$plans)) {
-      lines(0:Tn, c(0, r$plans[[i]][["Cum. production"]]), type = "o",
-            pch = 17, lty = i + 1, col = cols[i])
+      y <- c(0, r$plans[[i]][["Cum. production"]])
+      lines(0:Tn, y, col = cols[i], lwd = 2, lty = if (i == 1) 1 else 2)
+      points(0:Tn, y, pch = 21, bg = cols[i], col = "white", cex = 1.2, lwd = 1.2)
     }
-    legend("topleft", bty = "n",
-           legend = c("Cumulative net demand", paste("Cum. production -", names(r$plans))),
-           col = c("grey30", cols[seq_along(r$plans)]),
-           pch = c(19, rep(17, length(r$plans))), lty = c(1, seq_along(r$plans) + 1))
-  })
+    plot_legend(c("Cumulative net demand", paste("Cumulative production -", names(r$plans))),
+                c(app_colors$ink_2, cols[seq_along(r$plans)]),
+                lty = c(1, 1, 2)[seq_len(length(r$plans) + 1)], horiz = FALSE)
+  }, bg = "white", res = 96)
 
   output$cost_table <- renderTable({
     r <- result(); a <- ap()

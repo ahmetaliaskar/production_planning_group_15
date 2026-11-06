@@ -245,10 +245,13 @@ horizon <- function(input) {
 #   future_lower / future_upper  prediction interval             (optional)
 #   search   data frame of the parameter search                  (optional)
 
-forecast_results_ui <- function(ns) {
+# `extra`: module-specific outputs shown right below the forecast plot.
+forecast_results_ui <- function(ns, extra = NULL) {
   tagList(
-    h4(textOutput(ns("headline"))),
-    plotOutput(ns("forecast_plot"), height = "350px"),
+    div(class = "result-title", textOutput(ns("headline"), inline = TRUE)),
+    uiOutput(ns("kpis")),
+    plotOutput(ns("forecast_plot"), height = "360px"),
+    extra,
     fluidRow(
       column(6, h4("Error measures"), tableOutput(ns("error_table"))),
       column(6, h4("Parameters used"), tableOutput(ns("param_table")))
@@ -264,32 +267,50 @@ forecast_results_ui <- function(ns) {
 
 render_forecast_results <- function(output, result) {
 
-  output$headline <- renderText({
-    r <- result()
-    paste0(r$method, "  -  next-period forecast: ", round(r$future[1], 2))
+  output$headline <- renderText(result()$method)
+
+  output$kpis <- renderUI({
+    r <- tryCatch(result(), error = function(e) e)
+    if (inherits(r, "error")) {
+      if (nzchar(conditionMessage(r))) return(NULL)     # a real message is shown below
+      return(empty_state("Upload a data file on the left to see the forecasts.",
+                                       "Excel (.xlsx, .xls) or .csv - then choose the demand column."))
+    }
+    err <- forecast_errors(r$d, r$fitted, r$periods)
+    div(class = "kpi-row",
+        kpi_tile("Next-period forecast", fmt_num(r$future[1]),
+                 paste("Period", length(r$d) + 1)),
+        kpi_tile("MAD", fmt_num(err[["MAD"]])),
+        kpi_tile("MSE", fmt_num(err[["MSE"]])),
+        kpi_tile("MAPE", paste0(fmt_num(err[["MAPE"]]), " %")))
   })
 
   output$forecast_plot <- renderPlot({
     r <- result()
     n <- length(r$d); h <- length(r$future)
+    cols <- app_colors
     yr <- range(c(r$d, r$fitted, r$future, r$future_lower, r$future_upper),
                 na.rm = TRUE)
-    plot(1:n, r$d, type = "o", pch = 19, col = "grey30",
-         xlim = c(1, n + h), ylim = yr, xlab = "Period", ylab = "Demand",
-         main = r$method)
-    lines(1:n, r$fitted, type = "o", pch = 17, lty = 2, col = "#2F6FB0")
-    lines((n + 1):(n + h), r$future, type = "o", pch = 17, cex = 1.4,
-          col = "#B4501E")
+    yr <- yr + c(-0.04, 0.12) * diff(yr)               # room for the legend
+    plot_setup()
+    plot_frame(c(1, n + h), yr, xlab = "Period", ylab = "Demand")
+    rect(n + 0.5, yr[1] - diff(yr), n + h + 1, yr[2] + diff(yr),
+         col = "#f4f8fd", border = NA)                  # future area
+    abline(h = pretty(yr), col = cols$grid)
     if (!is.null(r$future_lower)) {
-      lines((n + 1):(n + h), r$future_lower, lty = 3, col = "#B4501E")
-      lines((n + 1):(n + h), r$future_upper, lty = 3, col = "#B4501E")
+      polygon(c((n + 1):(n + h), (n + h):(n + 1)), c(r$future_lower, rev(r$future_upper)),
+              col = adjustcolor(cols$series[2], 0.15), border = NA)
     }
-    abline(v = n + 0.5, col = "grey80", lty = 3)
-    legend("topleft", bty = "n",
-           legend = c("Actual demand", "One-step forecast", "Future forecast"),
-           col = c("grey30", "#2F6FB0", "#B4501E"),
-           pch = c(19, 17, 17), lty = c(1, 2, 1))
-  })
+    lines(1:n, r$d, col = cols$ink_2, lwd = 2)
+    points(1:n, r$d, pch = 16, col = cols$ink_2, cex = 0.9)
+    lines(1:n, r$fitted, col = cols$series[1], lwd = 2, lty = 2)
+    lines(c(n, (n + 1):(n + h)), c(r$fitted[n], r$future), col = cols$series[2], lwd = 2.5)
+    points((n + 1):(n + h), r$future, pch = 21, bg = cols$series[2], col = "white",
+           cex = 1.5, lwd = 1.5)
+    text(n + 0.6, yr[2], "Forecast", adj = c(0, 1), cex = 0.8, col = cols$ink_2)
+    plot_legend(c("Actual demand", "One-step forecast", "Future forecast"),
+                c(cols$ink_2, cols$series[1], cols$series[2]), lty = c(1, 2, 1))
+  }, bg = "white", res = 96)
 
   output$error_table <- renderTable({
     r <- result()

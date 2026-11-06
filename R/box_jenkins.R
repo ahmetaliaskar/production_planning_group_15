@@ -106,12 +106,13 @@ box_jenkins_ui <- function(id, type = "ARIMA") {
       horizon_ui(ns)
     ),
     mainPanel(
-      h4("Model identification: ACF and PACF"),
-      plotOutput(ns("acf_plot"), height = "300px"),
-      h4("Parameter estimates"),
-      tableOutput(ns("coef_table")),
-      tableOutput(ns("model_table")),
-      forecast_results_ui(ns)
+      forecast_results_ui(ns, extra = tagList(
+        h4("Model identification: ACF and PACF"),
+        plotOutput(ns("acf_plot"), height = if (has_d) "460px" else "260px"),
+        h4("Parameter estimates"),
+        fluidRow(column(7, tableOutput(ns("coef_table"))),
+                 column(5, tableOutput(ns("model_table"))))
+      ))
     )
   )
 }
@@ -157,12 +158,17 @@ box_jenkins_server <- function(id, type = "ARIMA") {
       series <- list("Series" = d)
       if (dd >= 1) series[["1st difference"]] <- diff(d)
       if (dd >= 2) series[["2nd difference"]] <- diff(d, differences = 2)
-      par(mfrow = c(length(series), 2), mar = c(4, 4, 2.5, 1))
+      par(mfrow = c(length(series), 2))
+      plot_setup(mar = c(4, 4.2, 2.6, 1))
       for (nm in names(series)) {
-        stats::acf(series[[nm]], main = paste("ACF -", nm))
-        stats::pacf(series[[nm]], main = paste("PACF -", nm))
+        stats::acf(series[[nm]], main = "", col = app_colors$series[1], lwd = 3,
+                   ci.col = app_colors$series[2])
+        title(paste("ACF -", nm), adj = 0, line = 1)
+        stats::pacf(series[[nm]], main = "", col = app_colors$series[1], lwd = 3,
+                    ci.col = app_colors$series[2])
+        title(paste("PACF -", nm), adj = 0, line = 1)
       }
-    })
+    }, bg = "white", res = 96)
 
     output$coef_table <- renderTable({
       fit <- model()$fit

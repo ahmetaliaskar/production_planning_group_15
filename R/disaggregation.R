@@ -76,6 +76,7 @@ disaggregation_ui <- function(id) {
                   value = "1000, 1200, 900"))
     ),
     mainPanel(
+      div(class = "result-title", "Disaggregation with the square-root rule"),
       h4("Square-root weights"),
       tableOutput(ns("weight_table")),
       plotOutput(ns("split_plot"), height = "320px"),
@@ -138,10 +139,15 @@ disaggregation_server <- function(id, ap, plans = list()) {
 
     output$split_plot <- renderPlot({
       Y <- split()
-      barplot(t(Y), names.arg = names(X()), col = hcl.colors(ncol(Y), "Blues 3"),
-              border = NA, legend.text = colnames(Y), ylab = "Units",
-              main = "Aggregate production split among families",
-              args.legend = list(bty = "n", x = "topright"))
-    })
+      cols <- app_colors$series[(seq_len(ncol(Y)) - 1) %% 8 + 1]
+      plot_setup(mar = c(3, 5.2, 2.6, 1))
+      yr <- c(0, max(rowSums(Y)) * 1.15)
+      bp <- barplot(t(Y), plot = FALSE)
+      plot_frame(range(bp) + c(-0.7, 0.7), yr, ylab = "Units", xaxt = "n",
+                 main = "Aggregate production split among families")
+      barplot(t(Y), names.arg = names(X()), col = cols, border = "white", add = TRUE,
+              axes = FALSE, cex.names = 0.85)
+      plot_legend(colnames(Y), cols, pch = 15, lty = NA, lwd = NA)
+    }, bg = "white", res = 96)
   })
 }
