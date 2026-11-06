@@ -35,6 +35,13 @@ and its server function uses `moduleServer()`. `app.R` adds one `tabPanel` per m
 
 ## Data files
 
+Example files are in the `data/` folder:
+
+| File | Use it in | Contents |
+|---|---|---|
+| `forecast_example.xlsx` / `.csv` | Forecasting tabs | 24 quarters; columns `Stationary`, `Trend`, `Seasonal` |
+| `aggregate_example.xlsx` / `.csv` | Aggregate Planning - Data and Costs | 6 months; `Month`, `Demand`, `Working days` |
+
 - Forecasting: an Excel (.xlsx, .xls) or .csv file with one or more numeric columns;
   the series is chosen in the app.
 - Aggregate planning: period names, demand forecasts and working days.
