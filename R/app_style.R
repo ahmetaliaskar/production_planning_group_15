@@ -51,6 +51,15 @@ app_style_css <- function() {
     .help-icon { background: var(--accent-soft) !important; color: var(--accent-ink) !important; }
     .help-icon:hover { background: var(--accent) !important; color: #fff !important; }
 
+    /* formulas: a little smaller so that they fit the left panel */
+    .formula-box { font-size: .8rem !important; }
+    .formula-box .MathJax_CHTML, .formula-box .MathJax { font-size: 108% !important; }
+
+    /* before any data: show only the drop card, not the empty headings */
+    .col-sm-8:has(.empty-state) > h4, .col-sm-8:has(.empty-state) > .table-head,
+    .col-sm-8:has(.empty-state) > .row, .col-sm-8:has(.empty-state) > p.result-note,
+    .col-sm-8:has(.empty-state) > .result-title { display: none !important; }
+
     /* results */
     .result-title { display: inline-block; position: relative; padding-bottom: 6px; }
     .result-title::after { content: ''; position: absolute; left: 0; bottom: 0; height: 4px; width: 64px;
@@ -126,6 +135,57 @@ app_style_css <- function() {
     @keyframes navShift  { from { background-position: 0% 50%; } to { background-position: 100% 50%; } }
     @keyframes busyRun   { from { background-position: 0% 0; } to { background-position: 300% 0; } }
 
+    /* ---------- left sidebar navigation (wide screens) ---------- */
+    @media (min-width: 992px) {
+      body { padding-left: 264px; }
+      .navbar { position: fixed !important; top: 0; left: 0; bottom: 0; width: 264px; z-index: 1030;
+                display: block !important; overflow-y: auto; padding: 22px 14px 30px !important;
+                background: linear-gradient(170deg, #10294a, #14365c 40%, #1f5a96 85%, #2a78d6) !important;
+                background-size: 100% 200% !important; animation: sideShift 18s ease-in-out infinite alternate;
+                box-shadow: 2px 0 18px rgba(16,41,74,.18); }
+      .navbar > .container-fluid { display: block !important; padding: 0 !important; }
+      .navbar .navbar-brand { display: block; white-space: normal; line-height: 1.25; font-size: 1.2rem;
+                margin: 0 6px 22px; padding: 0 0 18px; border-bottom: 1px solid rgba(255,255,255,.14); }
+      .navbar .navbar-toggler { display: none; }
+      .navbar .navbar-collapse { display: block !important; }
+      .navbar .navbar-nav { flex-direction: column !important; width: 100%; gap: 2px; }
+      .navbar .nav-item { width: 100%; }
+      .navbar .nav-link { display: flex; align-items: center; padding: 9px 12px !important; border-radius: 10px;
+                border: none !important; outline: none !important; box-shadow: none !important;
+                font-weight: 600; transition: background .2s, color .2s; }
+      .navbar .nav-link:hover { background: rgba(255,255,255,.08); }
+      .navbar .nav-link.active { background: rgba(255,255,255,.14); }
+      .navbar .nav-link::before { left: 0 !important; right: auto !important; top: 22%; bottom: 22% !important; width: 4px;
+                height: auto !important; transform: scaleY(0) !important; background: linear-gradient(180deg, #1baf7a, #eda100) !important; }
+      .navbar .nav-link:hover::before, .navbar .nav-link.active::before { transform: scaleY(1) !important; }
+      /* sections: always open, the header toggles them */
+      .navbar .dropdown { margin-top: 10px; }
+      .navbar .dropdown-toggle { font-size: .74rem; text-transform: uppercase; letter-spacing: .09em;
+                color: rgba(255,255,255,.62) !important; cursor: pointer; }
+      .navbar .dropdown-toggle::after { margin-left: auto; transition: transform .2s; }
+      .navbar .dropdown.nav-collapsed .dropdown-toggle::after { transform: rotate(-90deg); }
+      .navbar .dropdown-menu { position: static !important; display: block !important; transform: none !important;
+                inset: auto !important; float: none; width: 100%; margin: 2px 0 0 !important; padding: 0 0 4px 6px;
+                background: transparent !important; border: none !important; box-shadow: none !important;
+                animation: none; }
+      .navbar .dropdown.nav-collapsed .dropdown-menu { display: none !important; }
+      .navbar .dropdown-header { color: rgba(255,255,255,.45) !important; font-size: .66rem; padding: 10px 12px 4px; }
+      .navbar .dropdown-divider { border-color: rgba(255,255,255,.10) !important; margin: 6px 12px; }
+      .navbar .dropdown-item { color: rgba(255,255,255,.84) !important; border-radius: 8px; padding: 6px 12px;
+                font-size: .87rem; white-space: normal; transition: background .15s, padding-left .15s, color .15s; }
+      .navbar .dropdown-item:hover { background: rgba(255,255,255,.10) !important; padding-left: 18px; color: #fff !important; }
+      .navbar .dropdown-item.active { color: #fff !important; font-weight: 600;
+                background: linear-gradient(90deg, rgba(27,175,122,.35), rgba(237,161,0,.18)) !important; }
+      .container-fluid > .tab-content { padding: 26px 22px 40px !important; }
+      html.shiny-busy body::before { left: 264px; }
+    }
+    /* medium screens: menu stays on top, in one row */
+    @media (min-width: 576px) and (max-width: 991.98px) {
+      .navbar .navbar-nav { flex-direction: row !important; flex-wrap: wrap; align-items: center; }
+      .navbar .nav-link { padding: 8px 12px !important; }
+    }
+    @keyframes sideShift { from { background-position: 0% 0%; } to { background-position: 0% 100%; } }
+
     @media (prefers-reduced-motion: reduce) {
       *, *::before, *::after { animation: none !important; transition: none !important; }
     }
@@ -179,6 +239,12 @@ app_style_js <- function() {
           });
         });
       });
+      document.addEventListener('click', function (e) {
+        var t = e.target.closest && e.target.closest('.navbar .dropdown-toggle');
+        if (!t || !window.matchMedia('(min-width: 992px)').matches) return;
+        e.preventDefault(); e.stopImmediatePropagation();
+        t.closest('.dropdown').classList.toggle('nav-collapsed');
+      }, true);
       document.addEventListener('DOMContentLoaded', function () {
         themeTabs();
         obs.observe(document.body, { childList: true, subtree: true });

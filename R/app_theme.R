@@ -386,7 +386,7 @@ home_ui <- function() {
         div(class = "home-icon", icon("circle-info")),
         h3("How to use"),
         tags$ul(
-          tags$li("Choose a method from the menu above."),
+          tags$li("Choose a method from the menu on the left (or click a card above)."),
           tags$li("Upload an Excel (.xlsx) or .csv file and pick the data column."),
           tags$li("Enter the parameters or let the app search for the best values."),
           tags$li("Aggregate Planning: enter the data once in 'Data and Costs'; every plan uses it.")
