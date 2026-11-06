@@ -131,6 +131,20 @@ app_css <- function() {
             background: #e8f1fc; border-radius: 999px; padding: 2px 10px; margin-bottom: 10px; }
     .home-card ul { padding-left: 18px; margin: 0; color: %4$s; }
     .home-card li { margin: 2px 0; }
+    .home-card.clickable { cursor: pointer; transition: border-color .15s, box-shadow .15s, transform .15s; }
+    .home-card.clickable:hover { border-color: %7$s; box-shadow: 0 6px 18px rgba(20,54,92,.10); transform: translateY(-2px); }
+    .home-card .card-arrow { float: right; color: %7$s; font-weight: 400; transition: transform .2s; }
+    .home-card.open .card-arrow { transform: rotate(180deg); }
+    .home-card .card-hint { font-size: .78rem; color: %7$s; margin-top: 10px; }
+    .home-card.open .card-hint { display: none; }
+    .home-modules { display: none; margin-top: 12px; border-top: 1px solid %3$s; padding-top: 10px; cursor: default; }
+    .home-card.open .home-modules { display: block; }
+    .module-group { margin-bottom: 8px; }
+    .module-group-title { font-size: .7rem; text-transform: uppercase; letter-spacing: .06em; color: %4$s;
+           margin-bottom: 4px; }
+    .module-btn { border: 1px solid #cfe0f6; background: #f3f7fd; color: %2$s; border-radius: 999px;
+           padding: 3px 11px; margin: 0 6px 6px 0; font-size: .82rem; font-weight: 600; cursor: pointer; }
+    .module-btn:hover { background: %7$s; border-color: %7$s; color: #fff; }
     .member { display: inline-block; background: %5$s; border: 1px solid %3$s; border-radius: 999px;
             padding: 6px 14px; margin: 0 8px 8px 0; font-weight: 600; }
     @media (max-width: 767px) { .hero { padding: 24px 18px; } .hero h1 { font-size: 1.5rem; } }
@@ -138,6 +152,32 @@ app_css <- function() {
      app_colors$surface, app_colors$ink, app_colors$series[1])))
 }
 
+
+# Home page: clicking a card opens its tab or shows its method buttons;
+# a method button opens that tab (the same as choosing it in the menu).
+app_nav_js <- function() {
+  tags$script(HTML("
+    (function () {
+      function openTab(name) {
+        var a = Array.prototype.find.call(document.querySelectorAll('.navbar a[data-value]'),
+                                          function (x) { return x.getAttribute('data-value') === name; });
+        if (!a) return;
+        if (window.bootstrap && bootstrap.Tab) bootstrap.Tab.getOrCreateInstance(a).show(); else a.click();
+        document.querySelectorAll('.navbar .dropdown-menu.show, .navbar .dropdown-toggle.show')
+          .forEach(function (e) { e.classList.remove('show'); });
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }
+      document.addEventListener('click', function (e) {
+        var btn = e.target.closest && e.target.closest('.module-btn[data-goto]');
+        if (btn) { e.stopPropagation(); openTab(btn.getAttribute('data-goto')); return; }
+        var card = e.target.closest && e.target.closest('.home-card.clickable');
+        if (!card) return;
+        if (card.classList.contains('expandable')) card.classList.toggle('open');
+        else if (card.getAttribute('data-goto')) openTab(card.getAttribute('data-goto'));
+      });
+    })();
+  "))
+}
 
 # Drag and drop: a file dropped anywhere on a left panel (.well) that has a
 # file upload is given to that upload, exactly as if it had been chosen with
@@ -274,11 +314,23 @@ fmt_num <- function(x, digits = 2) {
 # ---------------------------------------------------------------------
 # 4) HOME PAGE
 # ---------------------------------------------------------------------
-home_card <- function(title, tag, items) {
-  column(4, div(class = "home-card",
+# A card on the Home page.
+#   goto:    tab to open when the card is clicked (Learning Curve), or
+#   modules: named list of groups -> c(button label = tab name); clicking the
+#            card shows / hides these buttons, a button opens its tab.
+home_card <- function(title, tag, items, goto = NULL, modules = NULL) {
+  module_buttons <- if (!is.null(modules)) div(class = "home-modules",
+    lapply(names(modules), function(g) div(class = "module-group",
+      div(class = "module-group-title", g),
+      lapply(names(modules[[g]]), function(lbl)
+        tags$button(type = "button", class = "module-btn", `data-goto` = modules[[g]][[lbl]], lbl)))))
+  column(4, div(class = paste("home-card clickable", if (!is.null(modules)) "expandable"),
+                `data-goto` = goto,
                 div(class = "tag", tag),
-                h3(title),
-                tags$ul(lapply(items, tags$li))))
+                h3(title, span(class = "card-arrow", if (is.null(modules)) "→" else "▾")),
+                tags$ul(lapply(items, tags$li)),
+                div(class = "card-hint", if (is.null(modules)) "Click to open" else "Click to see the methods"),
+                module_buttons))
 }
 
 home_ui <- function() {
@@ -288,16 +340,36 @@ home_ui <- function() {
         p("Group 15 - interactive tools for forecasting and aggregate planning (Nahmias).")),
     fluidRow(
       home_card("Learning Curve", "Week 1",
-                list("Time per unit for a chosen learning rate")),
+                list("Time per unit for a chosen learning rate"),
+                goto = "Learning Curve"),
       home_card("Forecasting", "Assignment 2",
                 list("Moving average, weighted moving average, exponential smoothing",
                      "Seasonal factors and seasonal decomposition",
                      "Holt's and Winters' methods",
-                     "Box-Jenkins: AR, MA, ARMA, ARIMA")),
+                     "Box-Jenkins: AR, MA, ARMA, ARIMA"),
+                modules = list(
+                  "Stationary series" = c("Moving Average" = "Moving Average",
+                                          "Weighted MA" = "Weighted Moving Average",
+                                          "Exponential Smoothing" = "Simple Exponential Smoothing",
+                                          "Seasonal Factors" = "Seasonal Factors (Quick and Dirty)"),
+                  "Trend series" = c("Holt's Method" = "Holt's Method"),
+                  "Seasonal series" = c("Seasonal Decomposition" = "Seasonal Decomposition",
+                                        "Winters' Method" = "Winters' Method"),
+                  "Box-Jenkins" = c("AR" = "AR", "MA" = "MA", "ARMA" = "ARMA", "ARIMA" = "ARIMA"),
+                  "Comparison" = c("Compare Methods" = "Compare Methods"))),
       home_card("Aggregate Planning", "Assignment 3",
                 list("Chase, level and mixed plans",
                      "Linear programming and the transportation method",
-                     "Disaggregation with the square-root rule"))
+                     "Disaggregation with the square-root rule"),
+                modules = list(
+                  "Start here" = c("Data and Costs" = "Data and Costs"),
+                  "Heuristic plans" = c("Chase Plan" = "Zero-Inventory (Chase) Plan",
+                                        "Level Plan" = "Constant-Workforce (Level) Plan",
+                                        "Mixed Plan" = "Mixed Plan"),
+                  "Optimization" = c("Linear Programming" = "Linear Programming",
+                                     "Transportation" = "Transportation Method"),
+                  "Disaggregation" = c("Square-Root Rule" = "Disaggregation (Square-Root Rule)"),
+                  "Comparison" = c("Compare Plans" = "Compare Plans")))
     ),
     fluidRow(
       column(6, div(class = "home-card",
