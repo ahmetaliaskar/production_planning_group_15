@@ -60,8 +60,9 @@ moving_average_server <- function(id) {
   moduleServer(id, function(input, output, session) {
     demand <- series_input_server("data", example_column = "Stationary")
 
-    result <- reactive({
-      d <- demand(); n <- length(d)
+    # The whole calculation for data d and horizon h (also used for the hold-out test)
+    compute <- function(d, h) {
+      n <- length(d)
       search <- NULL
       if (input$mode == "manual") {
         req(input$N)
@@ -80,11 +81,12 @@ moving_average_server <- function(id) {
       F <- moving_average_forecast(d, N)
       list(method  = paste0("Moving average MA(", N, ")"),
            d = d, fitted = F[1:n],
-           future  = rep(F[n + 1], horizon(input)),
+           future  = rep(F[n + 1], h),
            periods = start:n,
            params  = data.frame(Parameter = "N", Value = N),
            search  = search)
-    })
+    }
+    result <- reactive(add_holdout(compute(demand(), horizon(input)), input, compute))
 
     render_forecast_results(output, result)
   })

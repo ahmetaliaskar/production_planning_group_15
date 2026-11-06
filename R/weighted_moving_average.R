@@ -70,8 +70,9 @@ weighted_moving_average_server <- function(id) {
   moduleServer(id, function(input, output, session) {
     demand <- series_input_server("data", example_column = "Stationary")
 
-    result <- reactive({
-      d <- demand(); n <- length(d)
+    # The whole calculation for data d and horizon h (also used for the hold-out test)
+    compute <- function(d, h) {
+      n <- length(d)
       search <- NULL
       if (input$mode == "manual") {
         w <- parse_weights(input$weights)
@@ -100,12 +101,13 @@ weighted_moving_average_server <- function(id) {
       list(method  = paste0("Weighted moving average, weights = (",
                             paste(round(w, 3), collapse = ", "), ")"),
            d = d, fitted = F[1:n],
-           future  = rep(F[n + 1], horizon(input)),
+           future  = rep(F[n + 1], h),
            periods = (N + 1):n,
            params  = data.frame(Parameter = paste0("w", 1:N, " (period t-", 1:N, ")"),
                                 Value = w),
            search  = search)
-    })
+    }
+    result <- reactive(add_holdout(compute(demand(), horizon(input)), input, compute))
 
     render_forecast_results(output, result)
   })

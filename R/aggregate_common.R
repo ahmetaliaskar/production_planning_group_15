@@ -48,7 +48,8 @@ aggregate_data_ui <- function(id) {
       h4("1. Demand data"),
       fileInput(ns("file"), "Upload data (.xlsx, .xls or .csv)",
                 accept = c(".xlsx", ".xls", ".csv")),
-      example_button(ns),
+      div(class = "data-actions", example_button(ns),
+          downloadLink(ns("template"), "Empty Excel template", class = "template-link")),
       selectInput(ns("name_col"), "Period names column", choices = NULL),
       selectInput(ns("demand_col"), "Demand forecast column", choices = NULL),
       selectInput(ns("days_col"), "Working days column", choices = NULL),
@@ -111,6 +112,18 @@ aggregate_data_server <- function(id) {
       updateRadioButtons(session, "k_mode", selected = "past")
     })
     data <- reactive({ req(data_rv()); data_rv() })
+
+    output$template <- downloadHandler(
+      filename = function() "aggregate_planning_template.xlsx",
+      content = function(file) writexl::write_xlsx(list(
+        Data = data.frame(Period = c("January", "February", "March"),
+                          Demand = c(NA_real_, NA_real_, NA_real_),
+                          "Working days" = c(NA_real_, NA_real_, NA_real_), check.names = FALSE),
+        Instructions = data.frame(Instructions = c(
+          "One row per period, in time order.",
+          "Period: name of the period (month, week, ...).",
+          "Demand: demand forecast of the period (aggregate units).",
+          "Working days: number of working days in the period."))), file))
 
     # Guess the columns when a file is uploaded
     observeEvent(data(), {
@@ -282,7 +295,7 @@ ap_results_ui <- function(ns) {
     h4("Cost of each item"),
     tableOutput(ns("cost_table")),
     div(class = "table-head", h4(textOutput(ns("plan_title_1"))),
-        downloadButton(ns("download"), "Download plans (.csv)", class = "btn-sm btn-outline-secondary")),
+        downloadButton(ns("download"), "Download Excel", class = "btn-sm btn-outline-secondary")),
     tableOutput(ns("plan_table_1")),
     h4(textOutput(ns("plan_title_2"))),
     tableOutput(ns("plan_table_2"))
@@ -365,16 +378,19 @@ render_ap_results <- function(output, ap, result) {
     if (length(p) >= 2) paste("Plan -", names(p)[2]) else ""
   })
   output$download <- downloadHandler(
-    filename = function() paste0(gsub("[^A-Za-z0-9]+", "_", result()$title), ".csv"),
+    filename = function() paste0(gsub("[^A-Za-z0-9]+", "_", result()$title), ".xlsx"),
     content = function(file) {
-      r <- result()
-      out <- do.call(rbind, lapply(names(r$plans), function(nm) {
-        p <- r$plans[[nm]]
+      r <- result(); a <- ap()
+      costs <- lapply(r$plans, function(p) ap_costs(p, a))
+      cost_sheet <- data.frame(Item = names(costs[[1]]))
+      for (nm in names(costs)) cost_sheet[[nm]] <- round(unname(costs[[nm]]), 2)
+      plan_sheets <- lapply(r$plans, function(p) {
         num <- vapply(p, is.numeric, logical(1))
         p[num] <- lapply(p[num], function(x) round(x, 3))
-        cbind(Plan = nm, p)
-      }))
-      utils::write.csv(out, file, row.names = FALSE)
+        p
+      })
+      names(plan_sheets) <- substr(gsub("[^A-Za-z0-9 ]", "", names(plan_sheets)), 1, 31)
+      writexl::write_xlsx(c(list(Costs = cost_sheet), plan_sheets), file)
     })
 
   output$plan_table_2 <- renderTable({

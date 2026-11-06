@@ -50,7 +50,7 @@ compare_plans_ui <- function(id) {
       uiOutput(ns("kpis")),
       plotOutput(ns("bar_plot"), height = "320px"),
       div(class = "table-head", h4("Cost of each item by plan"),
-          downloadButton(ns("download"), "Download .csv", class = "btn-sm btn-outline-secondary")),
+          downloadButton(ns("download"), "Download Excel", class = "btn-sm btn-outline-secondary")),
       tableOutput(ns("table")),
       p(class = "result-note", textOutput(ns("note"), inline = TRUE))
     )
@@ -110,7 +110,7 @@ compare_plans_server <- function(id, ap, plans) {
 
     output$table <- renderTable({
       tab <- table()
-      tab$Plan <- ifelse(seq_len(nrow(tab)) == 1, paste("★", tab$Plan), tab$Plan)
+      tab$Plan <- ifelse(seq_len(nrow(tab)) == 1, paste("\u2605", tab$Plan), tab$Plan)
       # hide cost items that are zero for every plan
       zero <- vapply(tab, function(x) is.numeric(x) && all(abs(x) < 1e-9), logical(1))
       tab[, !zero, drop = FALSE]
@@ -124,7 +124,7 @@ compare_plans_server <- function(id, ap, plans) {
     })
 
     output$download <- downloadHandler(
-      filename = function() "aggregate_plans_comparison.csv",
-      content = function(file) utils::write.csv(table(), file, row.names = FALSE))
+      filename = function() "aggregate_plans_comparison.xlsx",
+      content = function(file) writexl::write_xlsx(list(Comparison = table()), file))
   })
 }

@@ -56,8 +56,9 @@ holt_server <- function(id) {
     demand <- series_input_server("data", example_column = "Trend")
     observeEvent(demand(), suggest_initial_values(session, demand()))
 
-    result <- reactive({
-      d <- demand(); n <- length(d)
+    # The whole calculation for data d and horizon h (also used for the hold-out test)
+    compute <- function(d, h) {
+      n <- length(d)
       st <- initial_values(input, d)
       S0 <- st[["level"]]; G0 <- st[["slope"]]
       search <- NULL
@@ -74,7 +75,6 @@ holt_server <- function(id) {
         alpha <- search$alpha[1]; beta <- search$beta[1]
       }
       run <- holt_run(d, alpha, beta, S0, G0)
-      h <- horizon(input)
       list(method  = paste0("Holt's method (alpha = ", alpha, ", beta = ", beta, ")"),
            d = d, fitted = run$F,
            future  = run$S[n] + (1:h) * run$G[n],
@@ -84,7 +84,8 @@ holt_server <- function(id) {
              Value = c(alpha, beta, S0, G0)),
            detail  = data.frame("S_t" = run$S, "G_t" = run$G, check.names = FALSE),
            search  = search)
-    })
+    }
+    result <- reactive(add_holdout(compute(demand(), horizon(input)), input, compute))
 
     render_forecast_results(output, result)
   })

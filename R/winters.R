@@ -78,8 +78,9 @@ winters_server <- function(id) {
     demand <- series_input_server("data", example_column = "Seasonal")
     observeEvent(demand(), suggest_initial_values(session, demand()))
 
-    result <- reactive({
-      d <- demand(); n <- length(d)
+    # The whole calculation for data d and horizon h (also used for the hold-out test)
+    compute <- function(d, h) {
+      n <- length(d)
       req(input$N)
       N <- as.integer(input$N)
       validate(need(N >= 2 && n >= 2 * N,
@@ -106,7 +107,6 @@ winters_server <- function(id) {
         alpha <- search$alpha[1]; beta <- search$beta[1]; gamma <- search$gamma[1]
       }
       run <- winters_run(d, N, alpha, beta, gamma, S0, G0, c0)
-      h <- horizon(input)
       tf <- (n + 1):(n + h)
       list(method  = paste0("Winters' method (alpha = ", alpha, ", beta = ", beta,
                             ", gamma = ", gamma, "), N = ", N),
@@ -121,7 +121,8 @@ winters_server <- function(id) {
                                 "S_t" = run$S, "G_t" = run$G, "c_t" = run$c,
                                 check.names = FALSE),
            search  = search)
-    })
+    }
+    result <- reactive(add_holdout(compute(demand(), horizon(input)), input, compute))
 
     render_forecast_results(output, result)
   })

@@ -53,8 +53,9 @@ exponential_smoothing_server <- function(id) {
     demand <- series_input_server("data", example_column = "Stationary")
     observeEvent(demand(), suggest_initial_values(session, demand()))
 
-    result <- reactive({
-      d <- demand(); n <- length(d)
+    # The whole calculation for data d and horizon h (also used for the hold-out test)
+    compute <- function(d, h) {
+      n <- length(d)
       S0 <- initial_values(input, d)[["level"]]
       search <- NULL
       if (input$mode == "manual") {
@@ -71,13 +72,14 @@ exponential_smoothing_server <- function(id) {
       run <- exponential_smoothing_run(d, alpha, S0)
       list(method  = paste0("Simple exponential smoothing (alpha = ", alpha, ")"),
            d = d, fitted = run$F,
-           future  = rep(run$S[n], horizon(input)),
+           future  = rep(run$S[n], h),
            periods = 1:n,
            params  = data.frame(Parameter = c("alpha", "S0 (initial level)"),
                                 Value = c(alpha, S0)),
            detail  = data.frame("S_t" = run$S, check.names = FALSE),
            search  = search)
-    })
+    }
+    result <- reactive(add_holdout(compute(demand(), horizon(input)), input, compute))
 
     render_forecast_results(output, result)
   })

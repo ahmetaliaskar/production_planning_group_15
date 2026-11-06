@@ -80,7 +80,8 @@ disaggregation_ui <- function(id) {
       h4("Square-root weights"),
       tableOutput(ns("weight_table")),
       plotOutput(ns("split_plot"), height = "320px"),
-      h4("Production of each family by period"),
+      div(class = "table-head", h4("Production of each family by period"),
+          downloadButton(ns("download"), "Download Excel", class = "btn-sm btn-outline-secondary")),
       tableOutput(ns("split_table"))
     )
   )
@@ -136,6 +137,15 @@ disaggregation_server <- function(id, ap, plans = list()) {
                                  "X above sum of upper bounds"))
       out
     })
+
+    output$download <- downloadHandler(
+      filename = function() "disaggregation_square_root_rule.xlsx",
+      content = function(file) {
+        Y <- split(); x <- X()
+        writexl::write_xlsx(list(
+          Split = data.frame(Period = names(x), "Aggregate X" = x, round(Y, 3), check.names = FALSE),
+          Families = families()), file)
+      })
 
     output$split_plot <- renderPlot({
       Y <- split()

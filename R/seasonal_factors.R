@@ -49,15 +49,15 @@ seasonal_factors_server <- function(id) {
   moduleServer(id, function(input, output, session) {
     demand <- series_input_server("data", example_column = "Seasonal")
 
-    result <- reactive({
-      d <- demand(); n <- length(d)
+    # The whole calculation for data d and horizon h (also used for the hold-out test)
+    compute <- function(d, h) {
+      n <- length(d)
       req(input$N)
       N <- as.integer(input$N)
       validate(need(N >= 2 && n >= N,
                     "The data must contain at least one complete season."))
       r <- seasonal_factors_run(d, N)
       pos <- season_position(1:n, N)
-      h <- horizon(input)
       fpos <- season_position((n + 1):(n + h), N)
       ratio <- c(r$ratio, rep(NA, n - r$n_used))
       list(method  = paste0("Seasonal factors (quick and dirty), N = ", N),
@@ -71,7 +71,8 @@ seasonal_factors_server <- function(id) {
                                 "D_t / mean" = ratio,
                                 "Factor c_j" = r$factors[pos],
                                 check.names = FALSE))
-    })
+    }
+    result <- reactive(add_holdout(compute(demand(), horizon(input)), input, compute))
 
     render_forecast_results(output, result)
   })

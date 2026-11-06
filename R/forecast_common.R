@@ -81,18 +81,88 @@ numeric_columns <- function(df) {
   names(df)[ok]
 }
 
-# Screen part: file upload + column choice (a small module of its own).
+# Columns that hold period names / dates rather than demand:
+# text or date columns, and numeric columns called e.g. "Period", "Month", "Date".
+label_column_candidates <- function(df) {
+  nums <- numeric_columns(df)
+  named <- nums[grepl("^(period|date|time|t|month|week|year|quarter|day|ay|tarih|donem|hafta|yil)$",
+                      tolower(trimws(nums)))]
+  list(labels = c(setdiff(names(df), nums), named), series = setdiff(nums, named))
+}
+
+# Turns a label column into text (Excel dates -> "2025-01-31").
+format_labels <- function(x) {
+  if (inherits(x, c("Date", "POSIXt"))) return(format(as.Date(x)))
+  as.character(x)
+}
+
+# Cleans the chosen column and records what was done in attr(, "notes"):
+#   text cells -> treated as empty; empty rows at the start/end -> dropped;
+#   empty cells inside the series -> linear interpolation; negative / zero values -> warning.
+# The period names are kept in attr(, "labels").
+clean_series <- function(raw, labels = NULL) {
+  v <- as_number(raw)
+  notes <- character(0)
+  txt <- trimws(as.character(raw))
+  bad_text <- sum(!is.na(raw) & !is.na(txt) & txt != "" & is.na(v))
+  if (bad_text > 0) notes <- c(notes, paste(bad_text, "cell(s) contain text and were treated as empty."))
+  ok <- which(!is.na(v))
+  validate(need(length(ok) >= 3, "The series needs at least 3 numbers."))
+  keep <- min(ok):max(ok)
+  dropped <- length(v) - length(keep)
+  if (dropped > 0) notes <- c(notes, paste(dropped, "empty row(s) at the start or end were ignored."))
+  v <- v[keep]
+  if (!is.null(labels)) labels <- labels[keep]
+  gaps <- which(is.na(v))
+  if (length(gaps) > 0) {
+    v[gaps] <- stats::approx(seq_along(v), v, xout = gaps)$y
+    where <- if (!is.null(labels)) labels[gaps] else gaps
+    notes <- c(notes, paste0(length(gaps), " empty cell(s) inside the series were filled by linear interpolation (",
+                             paste(head(where, 5), collapse = ", "), if (length(gaps) > 5) ", ..." else "", ")."))
+  }
+  if (any(v < 0)) notes <- c(notes, paste(sum(v < 0), "negative value(s) - please check the data."))
+  if (any(v == 0)) notes <- c(notes, paste(sum(v == 0), "zero value(s): these periods are left out of MAPE."))
+  attr(v, "labels") <- labels
+  attr(v, "notes") <- notes
+  v
+}
+
+# Name of period t (t > n: "+1", "+2", ... for future periods).
+period_label <- function(d, t) {
+  n <- length(d); lab <- attr(d, "labels")
+  ifelse(t > n, paste0("+", t - n),
+         if (is.null(lab)) as.character(t) else as.character(lab[pmin(t, n)]))
+}
+
+# An empty Excel file in the right format.
+write_input_template <- function(file) {
+  writexl::write_xlsx(list(
+    Data = data.frame(Period = c("2025-01", "2025-02", "2025-03"),
+                      Demand = c(NA_real_, NA_real_, NA_real_)),
+    Instructions = data.frame(Instructions = c(
+      "One row per period, oldest first.",
+      "Column 'Period': period name or date (optional, used on the charts).",
+      "Then one numeric column per series (e.g. one per product).",
+      "Empty cells inside a series are filled by interpolation; text cells are ignored."))),
+    file)
+}
+
+# Screen part: file upload + column choice + data check (a small module of its own).
 series_input_ui <- function(id) {
   ns <- NS(id)
   tagList(
     fileInput(ns("file"), "Upload data (.xlsx, .xls or .csv)",
               accept = c(".xlsx", ".xls", ".csv")),
-    example_button(ns),
-    selectInput(ns("column"), "Series (demand column)", choices = NULL)
+    div(class = "data-actions", example_button(ns),
+        downloadLink(ns("template"), "Empty Excel template", class = "template-link")),
+    selectInput(ns("column"), "Series (demand column)", choices = NULL),
+    selectInput(ns("label_col"), "Period names / dates (optional)", choices = c("(none)" = "")),
+    uiOutput(ns("check"))
   )
 }
 
-# Returns a reactive with the demand vector of the chosen column.
+# Returns a reactive with the cleaned demand vector of the chosen column
+# (period names in attr(, "labels"), data notes in attr(, "notes")).
 # `example_column`: the column chosen when the example data is loaded.
 series_input_server <- function(id, example_column = "Seasonal") {
   moduleServer(id, function(input, output, session) {
@@ -115,17 +185,38 @@ series_input_server <- function(id, example_column = "Seasonal") {
     })
 
     observeEvent(data(), {
-      cols <- numeric_columns(data())
+      cand <- label_column_candidates(data())
+      cols <- cand$series
       sel <- if (!is.null(preferred()) && preferred() %in% cols) preferred() else tail(cols, 1)
       updateSelectInput(session, "column", choices = cols, selected = sel)
+      updateSelectInput(session, "label_col", choices = c("(none)" = "", cand$labels),
+                        selected = if (length(cand$labels)) cand$labels[1] else "")
     })
-    reactive({
+
+    series <- reactive({
       req(input$column, input$column %in% names(data()))
-      d <- as_number(data()[[input$column]])
-      d <- d[!is.na(d)]
-      validate(need(length(d) >= 3, "The series needs at least 3 numbers."))
-      d
+      df <- data()
+      lab <- if (isTruthy(input$label_col) && input$label_col %in% names(df))
+        format_labels(df[[input$label_col]]) else NULL
+      clean_series(df[[input$column]], lab)
     })
+
+    output$check <- renderUI({
+      d <- tryCatch(series(), error = function(e) NULL)
+      if (is.null(d)) return(NULL)
+      n <- length(d)
+      notes <- attr(d, "notes")
+      div(class = if (length(notes)) "data-check warn" else "data-check",
+          div(icon(if (length(notes)) "triangle-exclamation" else "circle-check"),
+              paste0(" ", n, " periods loaded (", period_label(d, 1), " - ", period_label(d, n), ")")),
+          if (length(notes)) tags$ul(lapply(notes, tags$li)))
+    })
+
+    output$template <- downloadHandler(
+      filename = function() "forecast_input_template.xlsx",
+      content = write_input_template)
+
+    series
   })
 }
 
@@ -244,6 +335,41 @@ horizon <- function(input) {
   if (is.null(h) || is.na(h) || h < 1) 1 else as.integer(h)
 }
 
+# Hold-out test: the last k periods are hidden, the method is fitted again on the
+# remaining periods (including its parameter search) and its forecasts for the
+# hidden periods are compared with what really happened.
+holdout_ui <- function(ns) {
+  numericInput(ns("test"), "Hold-out test periods (0 = none)", value = 0, min = 0, step = 1)
+}
+
+holdout_k <- function(input) {
+  k <- input$test
+  if (is.null(k) || is.na(k) || k < 1) 0L else as.integer(k)
+}
+
+# `compute(d, h)` is the module's whole calculation; adds r$test.
+add_holdout <- function(r, input, compute) {
+  k <- holdout_k(input)
+  if (k == 0) return(r)
+  d <- r$d; n <- length(d)
+  if (n - k < 4) {
+    r$test <- list(message = "Too many hold-out periods: at least 4 periods must remain for fitting.")
+    return(r)
+  }
+  fc <- tryCatch(compute(as.numeric(d[1:(n - k)]), k)$future, error = function(e) e)
+  if (inherits(fc, "error")) {
+    r$test <- list(message = paste("The method could not be fitted on the first", n - k,
+                                 "periods:", conditionMessage(fc)))
+    return(r)
+  }
+  actual <- as.numeric(d[(n - k + 1):n])
+  e <- fc - actual; nz <- actual != 0
+  r$test <- list(k = k, periods = (n - k + 1):n, actual = actual, forecast = fc,
+                 errors = c(MAD = mean(abs(e)), MSE = mean(e^2),
+                            MAPE = if (any(nz)) mean(abs(e[nz] / actual[nz])) * 100 else NA))
+  r
+}
+
 
 # ---------------------------------------------------------------------
 # 4) COMMON OUTPUTS
@@ -266,19 +392,34 @@ forecast_results_ui <- function(ns, extra = NULL) {
     div(class = "result-title", textOutput(ns("headline"), inline = TRUE)),
     uiOutput(ns("kpis")),
     plotOutput(ns("forecast_plot"), height = "360px"),
+    p(class = "result-note", textOutput(ns("test_note"), inline = TRUE)),
     extra,
     fluidRow(
       column(6, h4("Error measures"), tableOutput(ns("error_table"))),
       column(6, h4("Parameters used"), tableOutput(ns("param_table")))
     ),
+    h4(textOutput(ns("test_title"))),
+    tableOutput(ns("test_table")),
     h4(textOutput(ns("search_title"))),
     tableOutput(ns("search_table")),
     h4("Forecasts for future periods"),
     tableOutput(ns("future_table")),
     div(class = "table-head", h4("Calculations by period"),
-        downloadButton(ns("download"), "Download .csv", class = "btn-sm btn-outline-secondary")),
+        downloadButton(ns("download"), "Download Excel", class = "btn-sm btn-outline-secondary")),
     tableOutput(ns("period_table"))
   )
+}
+
+# x axis with period names when they exist.
+axis_periods <- function(d, h) {
+  n <- length(d)
+  if (is.null(attr(d, "labels"))) {
+    at <- pretty(c(1, n + h)); at <- at[at >= 1 & at <= n + h]
+    axis(1, at = at, labels = period_label(d, at), lwd = 0, lwd.ticks = 1)
+  } else {
+    at <- seq(1, n, by = max(1, ceiling(n / 7)))
+    axis(1, at = at, labels = period_label(d, at), lwd = 0, lwd.ticks = 1, cex.axis = 0.78)
+  }
 }
 
 render_forecast_results <- function(output, result) {
@@ -293,25 +434,33 @@ render_forecast_results <- function(output, result) {
                          "or click to choose a file - or use 'Load example data' on the left."))
     }
     err <- forecast_errors(r$d, r$fitted, r$periods)
+    tst <- if (!is.null(r$test$errors)) r$test$errors else NULL
+    sub <- function(m) if (is.null(tst)) "in-sample" else
+      paste0("in-sample  |  test: ", fmt_num(tst[[m]]), if (m == "MAPE") " %" else "")
     div(class = "kpi-row",
         kpi_tile("Next-period forecast", fmt_num(r$future[1]),
-                 paste("Period", length(r$d) + 1)),
-        kpi_tile("MAD", fmt_num(err[["MAD"]])),
-        kpi_tile("MSE", fmt_num(err[["MSE"]])),
-        kpi_tile("MAPE", paste0(fmt_num(err[["MAPE"]]), " %")))
+                 paste("Period", period_label(r$d, length(r$d) + 1))),
+        kpi_tile("MAD", fmt_num(err[["MAD"]]), sub("MAD")),
+        kpi_tile("MSE", fmt_num(err[["MSE"]]), sub("MSE")),
+        kpi_tile("MAPE", paste0(fmt_num(err[["MAPE"]]), " %"), sub("MAPE")))
   })
 
   output$forecast_plot <- renderPlot({
     r <- result()
     n <- length(r$d); h <- length(r$future)
     cols <- app_colors
-    yr <- range(c(r$d, r$fitted, r$future, r$future_lower, r$future_upper),
+    yr <- range(c(r$d, r$fitted, r$future, r$future_lower, r$future_upper, r$test$forecast),
                 na.rm = TRUE)
-    yr <- yr + c(-0.04, 0.12) * diff(yr)               # room for the legend
+    yr <- yr + c(-0.10, 0.22) * diff(yr)               # room for the legend and area labels
     plot_setup()
-    plot_frame(c(1, n + h), yr, xlab = "Period", ylab = "Demand")
-    rect(n + 0.5, yr[1] - diff(yr), n + h + 1, yr[2] + diff(yr),
-         col = "#f4f8fd", border = NA)                  # future area
+    plot_frame(c(1, n + h), yr, xlab = "Period", ylab = "Demand", xaxt = "n")
+    axis_periods(r$d, h)
+    big <- diff(yr)
+    rect(n + 0.5, yr[1] - big, n + h + 1, yr[2] + big, col = "#f4f8fd", border = NA)   # future
+    if (!is.null(r$test$forecast)) {
+      rect(min(r$test$periods) - 0.5, yr[1] - big, n + 0.5, yr[2] + big,
+           col = "#edf8f3", border = NA)                                                # hold-out
+    }
     abline(h = pretty(yr), col = cols$grid)
     if (!is.null(r$future_lower)) {
       polygon(c((n + 1):(n + h), (n + h):(n + 1)), c(r$future_lower, rev(r$future_upper)),
@@ -323,24 +472,53 @@ render_forecast_results <- function(output, result) {
     lines(c(n, (n + 1):(n + h)), c(r$fitted[n], r$future), col = cols$series[2], lwd = 2.5)
     points((n + 1):(n + h), r$future, pch = 21, bg = cols$series[2], col = "white",
            cex = 1.5, lwd = 1.5)
-    text(n + 0.6, yr[2], "Forecast", adj = c(0, 1), cex = 0.8, col = cols$ink_2)
-    plot_legend(c("Actual demand", "One-step forecast", "Future forecast"),
-                c(cols$ink_2, cols$series[1], cols$series[2]), lty = c(1, 2, 1))
+    labs <- c("Actual demand", "One-step forecast", "Future forecast")
+    lc <- c(cols$ink_2, cols$series[1], cols$series[2]); lt <- c(1, 2, 1)
+    if (!is.null(r$test$forecast)) {
+      lines(r$test$periods, r$test$forecast, col = cols$series[3], lwd = 2.5)
+      points(r$test$periods, r$test$forecast, pch = 21, bg = cols$series[3], col = "white", cex = 1.3)
+      text(min(r$test$periods) - 0.4, yr[1], "Test", adj = c(0, 0), cex = 0.8, col = cols$ink_2)
+      labs <- c(labs, "Hold-out forecast"); lc <- c(lc, cols$series[3]); lt <- c(lt, 1)
+    }
+    text(n + 0.6, yr[1], "Forecast", adj = c(0, 0), cex = 0.8, col = cols$ink_2)
+    plot_legend(labs, lc, lty = lt, ncol = if (length(labs) > 3) 2 else NULL)
   }, bg = "white", res = 96)
+
+  output$test_note <- renderText({
+    t <- result()$test
+    if (is.null(t)) return("")
+    if (!is.null(t[["message"]])) return(t[["message"]])
+    paste0("Hold-out test: the method was fitted on the first ", min(t$periods) - 1,
+           " periods only and forecast the last ", t$k, " (green area).")
+  })
 
   output$error_table <- renderTable({
     r <- result()
     err <- forecast_errors(r$d, r$fitted, r$periods)
-    data.frame(Measure = c("MAD", "MSE", "MAPE (%)"),
-               Value = round(unname(err), 3),
-               "Periods evaluated" = paste0(min(r$periods), " - ", max(r$periods)),
-               check.names = FALSE)
+    out <- data.frame(Measure = c("MAD", "MSE", "MAPE (%)"),
+                      "In-sample" = round(unname(err), 3),
+                      "Periods" = paste0(period_label(r$d, min(r$periods)), " - ",
+                                         period_label(r$d, max(r$periods))),
+                      check.names = FALSE)
+    if (!is.null(r$test$errors)) out[[paste0("Test (last ", r$test$k, ")")]] <- round(unname(r$test$errors), 3)
+    out
   })
 
   output$param_table <- renderTable({
     r <- result()
     r$params
   }, digits = 4)
+
+  output$test_title <- renderText({
+    t <- result()$test
+    if (is.null(t$errors)) "" else paste0("Hold-out test: last ", t$k, " periods")
+  })
+
+  output$test_table <- renderTable({
+    t <- result()$test
+    if (is.null(t$errors)) return(NULL)
+    forecast_test_table(result())
+  }, digits = 3)
 
   output$search_title <- renderText({
     if (is.null(result()$search)) "" else "Parameter search (best 10)"
@@ -352,42 +530,61 @@ render_forecast_results <- function(output, result) {
     head(s, 10)
   }, digits = 3)
 
-  output$future_table <- renderTable({
-    r <- result()
-    n <- length(r$d); h <- length(r$future)
-    out <- data.frame(Period = as.integer((n + 1):(n + h)),
-                      Forecast = round(r$future, 3))
-    if (!is.null(r$future_lower)) {
-      out[["Lower 95%"]] <- round(r$future_lower, 3)
-      out[["Upper 95%"]] <- round(r$future_upper, 3)
-    }
-    out
-  })
+  output$future_table <- renderTable(forecast_future_table(result()))
 
   output$period_table <- renderTable(forecast_period_table(result()), na = "")
 
   output$download <- downloadHandler(
-    filename = function() paste0(gsub("[^A-Za-z0-9]+", "_", result()$method), ".csv"),
+    filename = function() paste0(gsub("[^A-Za-z0-9]+", "_", result()$method), ".xlsx"),
     content = function(file) {
       r <- result()
-      out <- forecast_period_table(r)
-      n <- length(r$d); h <- length(r$future)
-      fut <- out[rep(1, h), ]; fut[] <- NA
-      fut$Period <- (n + 1):(n + h); fut[["Forecast F_t"]] <- round(r$future, 3)
-      utils::write.csv(rbind(out, fut), file, row.names = FALSE, na = "")
+      err <- forecast_errors(r$d, r$fitted, r$periods)
+      summary <- data.frame(Item = c("Method", "MAD (in-sample)", "MSE (in-sample)", "MAPE % (in-sample)",
+                                     "Next-period forecast"),
+                            Value = c(r$method, round(unname(err), 4), round(r$future[1], 4)))
+      if (!is.null(r$test$errors)) {
+        summary <- rbind(summary, data.frame(
+          Item = paste0(c("MAD", "MSE", "MAPE %"), " (test, last ", r$test$k, ")"),
+          Value = round(unname(r$test$errors), 4)))
+      }
+      sheets <- list(Summary = summary,
+                     Parameters = if (is.null(r$params)) data.frame() else r$params,
+                     Future = forecast_future_table(r),
+                     Calculations = forecast_period_table(r))
+      if (!is.null(r$test$errors)) sheets$`Hold-out test` <- forecast_test_table(r)
+      if (!is.null(r$search)) sheets$`Parameter search` <- r$search
+      writexl::write_xlsx(sheets, file)
     })
 }
 
 # Period-by-period table (screen and download).
 forecast_period_table <- function(r) {
   n <- length(r$d)
-  out <- data.frame(Period = 1:n,
-                    "Demand D_t" = r$d,
-                    "Forecast F_t" = round(r$fitted, 3),
-                    "Error e_t = F_t - D_t" = round(r$fitted - r$d, 3),
-                    check.names = FALSE)
+  out <- data.frame(Period = 1:n, check.names = FALSE)
+  if (!is.null(attr(r$d, "labels"))) out$Name <- attr(r$d, "labels")
+  out <- cbind(out, data.frame("Demand D_t" = as.numeric(r$d),
+                               "Forecast F_t" = round(r$fitted, 3),
+                               "Error e_t = F_t - D_t" = round(r$fitted - as.numeric(r$d), 3),
+                               check.names = FALSE))
   if (!is.null(r$detail)) out <- cbind(out, round(r$detail, 4))
   out
+}
+
+forecast_future_table <- function(r) {
+  n <- length(r$d); h <- length(r$future)
+  out <- data.frame(Period = period_label(r$d, (n + 1):(n + h)), Forecast = round(r$future, 3))
+  if (!is.null(r$future_lower)) {
+    out[["Lower 95%"]] <- round(r$future_lower, 3)
+    out[["Upper 95%"]] <- round(r$future_upper, 3)
+  }
+  out
+}
+
+forecast_test_table <- function(r) {
+  t <- r$test
+  data.frame(Period = period_label(r$d, t$periods), Actual = t$actual,
+             "Hold-out forecast" = t$forecast, Error = t$forecast - t$actual,
+             check.names = FALSE)
 }
 
 # A complete page for a forecasting method:
@@ -398,7 +595,8 @@ forecast_page <- function(ns, explanation, ...) {
       formula_box(explanation),
       series_input_ui(ns("data")),
       ...,
-      horizon_ui(ns)
+      horizon_ui(ns),
+      holdout_ui(ns)
     ),
     mainPanel(forecast_results_ui(ns))
   )

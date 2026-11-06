@@ -106,7 +106,8 @@ box_jenkins_ui <- function(id, type = "ARIMA") {
         criteria = c("AIC", "MAD", "MSE", "MAPE")
       ),
       if (!has_d) checkboxInput(ns("mean"), "Include a constant (mean)", value = TRUE),
-      horizon_ui(ns)
+      horizon_ui(ns),
+      holdout_ui(ns)
     ),
     mainPanel(
       forecast_results_ui(ns, extra = tagList(
@@ -133,9 +134,10 @@ box_jenkins_server <- function(id, type = "ARIMA") {
       if (is.null(v) || is.na(v)) default else as.integer(v)
     }
 
-    # chosen orders and the fitted model
-    model <- reactive({
-      d <- demand()
+    # Chooses the orders, fits the model on data d and forecasts h periods
+    # (also used for the hold-out test).
+    compute <- function(d, h) {
+      n <- length(d)
       search <- NULL
       if (input$mode == "manual") {
         p  <- get_order("p", 0); dd <- get_order("d", 0); q <- get_order("q", 0)
@@ -148,12 +150,22 @@ box_jenkins_server <- function(id, type = "ARIMA") {
         validate(need(!is.null(search), "No model could be estimated for this data."))
         p <- search$p[1]; dd <- search$d[1]; q <- search$q[1]
       }
-      validate(need(length(d) > p + dd + q + 2,
-                    "Not enough observations for these orders."))
+      validate(need(n > p + dd + q + 2, "Not enough observations for these orders."))
       fit <- box_jenkins_fit(d, p, dd, q, include_mean())
       validate(need(!is.null(fit), "R could not estimate this model. Try other orders."))
-      list(fit = fit, p = p, d = dd, q = q, search = search)
-    })
+      pr <- stats::predict(fit, n.ahead = h)
+      list(method  = paste0(type, " model: ARIMA(", p, ",", dd, ",", q, ")"),
+           d = d, fitted = box_jenkins_fitted(d, fit),
+           future  = as.numeric(pr$pred),
+           future_lower = as.numeric(pr$pred - 1.96 * pr$se),
+           future_upper = as.numeric(pr$pred + 1.96 * pr$se),
+           periods = (dd + 1):n,
+           params  = data.frame(Parameter = c("p", "d", "q"), Value = c(p, dd, q)),
+           search  = search,
+           model   = list(fit = fit, p = p, d = dd, q = q))
+    }
+    result <- reactive(add_holdout(compute(demand(), horizon(input)), input, compute))
+    model <- reactive(result()$model)
 
     output$acf_plot <- renderPlot({
       d <- demand()
@@ -188,20 +200,6 @@ box_jenkins_server <- function(id, type = "ARIMA") {
                  Value = c(fit$sigma2, fit$loglik, fit$aic))
     }, digits = 3)
 
-    result <- reactive({
-      d <- demand(); n <- length(d)
-      m <- model()
-      pr <- stats::predict(m$fit, n.ahead = horizon(input))
-      list(method  = paste0(type, " model: ARIMA(", m$p, ",", m$d, ",", m$q, ")"),
-           d = d, fitted = box_jenkins_fitted(d, m$fit),
-           future  = as.numeric(pr$pred),
-           future_lower = as.numeric(pr$pred - 1.96 * pr$se),
-           future_upper = as.numeric(pr$pred + 1.96 * pr$se),
-           periods = (m$d + 1):n,
-           params  = data.frame(Parameter = c("p", "d", "q"),
-                                Value = c(m$p, m$d, m$q)),
-           search  = m$search)
-    })
 
     render_forecast_results(output, result)
   })

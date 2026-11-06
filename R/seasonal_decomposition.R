@@ -72,8 +72,9 @@ seasonal_decomposition_server <- function(id) {
   moduleServer(id, function(input, output, session) {
     demand <- series_input_server("data", example_column = "Seasonal")
 
-    result <- reactive({
-      d <- demand(); n <- length(d)
+    # The whole calculation for data d and horizon h (also used for the hold-out test)
+    compute <- function(d, h) {
+      n <- length(d)
       req(input$N)
       N <- as.integer(input$N)
       validate(need(N >= 2 && n >= 2 * N,
@@ -81,7 +82,6 @@ seasonal_decomposition_server <- function(id) {
       r <- seasonal_decomposition_run(d, N)
       validate(need(all(!is.na(r$factors)),
                     "Not enough data to compute every seasonal factor."))
-      h <- horizon(input)
       tf <- (n + 1):(n + h)
       list(method  = paste0("Seasonal decomposition, N = ", N,
                             ", trend line ", round(r$a, 3), " + ", round(r$b, 3), " t"),
@@ -98,7 +98,8 @@ seasonal_decomposition_server <- function(id) {
                                 "Deseasonalized" = r$deseason,
                                 "Trend a + b t" = r$trend,
                                 check.names = FALSE))
-    })
+    }
+    result <- reactive(add_holdout(compute(demand(), horizon(input)), input, compute))
 
     render_forecast_results(output, result)
   })

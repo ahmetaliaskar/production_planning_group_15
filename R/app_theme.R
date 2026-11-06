@@ -87,7 +87,19 @@ app_css <- function() {
     .formula-box { background: #f3f7fd; border: 1px solid #d6e4f7; border-radius: 10px;
            padding: 10px 12px; margin-bottom: 14px; color: %6$s; font-size: .92rem; overflow-x: auto; }
     .formula-box > div + div { margin-top: 4px; }
-    .example-btn { margin: -6px 0 14px; }
+    .data-actions { display: flex; align-items: center; justify-content: space-between; gap: 8px;
+           flex-wrap: wrap; margin: -6px 0 14px; }
+    .data-actions .example-btn { margin: 0; }
+    .template-link { font-size: .82rem; }
+    .data-check { font-size: .82rem; border-radius: 8px; padding: 8px 10px; margin: -4px 0 14px;
+           background: #edf8f3; border: 1px solid #c7e9da; color: %6$s; }
+    .data-check.warn { background: #fff7e6; border-color: #f3d9a4; }
+    .data-check ul { margin: 4px 0 0; padding-left: 18px; }
+    .help-icon { display: inline-flex; align-items: center; justify-content: center; width: 16px; height: 16px;
+           margin-left: 6px; border-radius: 50%%; background: #e3ecf9; color: %7$s; font-size: .7rem;
+           font-weight: 700; cursor: help; vertical-align: middle; }
+    .help-icon:hover, .help-icon:focus { background: %7$s; color: #fff; outline: none; }
+    .tooltip-inner { max-width: 280px; text-align: left; font-size: .8rem; }
     .table-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 10px;
            margin: 22px 0 8px; }
     .table-head h4 { margin: 0 !important; }
@@ -213,10 +225,12 @@ plot_frame <- function(xlim, ylim, xlab = "", ylab = "", main = "", xaxt = "s") 
 
 # Legend in one row above the plot area.
 # (horiz = FALSE stacks the entries in the top-left corner instead)
-plot_legend <- function(labels, cols, pch = NA, lty = 1, lwd = 2, horiz = TRUE) {
+plot_legend <- function(labels, cols, pch = NA, lty = 1, lwd = 2, horiz = TRUE, ncol = NULL) {
+  if (!is.null(ncol)) horiz <- FALSE
   legend("topleft", inset = c(0, -0.02), legend = labels, col = cols, pch = pch,
          lty = lty, lwd = lwd, horiz = horiz, cex = 0.82,
-         bty = if (horiz) "n" else "o", box.col = NA,
+         ncol = if (is.null(ncol)) 1 else ncol,
+         bty = if (horiz || !is.null(ncol)) "n" else "o", box.col = NA,
          bg = adjustcolor("white", 0.9),
          text.col = app_colors$ink_2, x.intersp = 0.6, y.intersp = 1.1,
          seg.len = 1.6, xpd = TRUE)

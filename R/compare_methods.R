@@ -104,6 +104,9 @@ compare_methods_ui <- function(id) {
                    value = 4, min = 2, step = 1),
       selectInput(ns("criterion"), "Compare by", choices = c("MAD", "MSE", "MAPE")),
       horizon_ui(ns),
+      holdout_ui(ns),
+      helpText("With hold-out periods the methods are ranked by their test error",
+               "(fitted on the earlier periods only) - the fairest comparison."),
       helpText("Running all methods may take a few seconds.")
     ),
     mainPanel(
@@ -111,7 +114,7 @@ compare_methods_ui <- function(id) {
       uiOutput(ns("kpis")),
       plotOutput(ns("bar_plot"), height = "340px"),
       div(class = "table-head", h4("All methods"),
-          downloadButton(ns("download"), "Download .csv", class = "btn-sm btn-outline-secondary")),
+          downloadButton(ns("download"), "Download Excel", class = "btn-sm btn-outline-secondary")),
       tableOutput(ns("table")),
       p(class = "result-note", textOutput(ns("note"), inline = TRUE)),
       h4("Best method: actual demand and forecasts"),
@@ -136,17 +139,39 @@ compare_methods_server <- function(id) {
                    compare_methods_run(d, as.integer(input$N), input$criterion, horizon(input)))
     })
 
+    # Hold-out: all methods fitted again on the first n - k periods
+    test_run <- reactive({
+      k <- holdout_k(input)
+      if (k == 0) return(NULL)
+      d <- as.numeric(demand()); n <- length(d)
+      validate(need(n - k >= 6, "Too many hold-out periods: at least 6 periods must remain."))
+      list(k = k, actual = d[(n - k + 1):n],
+           run = withProgress(message = "Hold-out test...",
+                              compare_methods_run(d[1:(n - k)], as.integer(input$N), input$criterion, k)))
+    })
+
     table <- reactive({
       r <- run(); d <- demand(); periods <- r$start:length(d)
+      tr <- test_run()
       rows <- lapply(r$results, function(m) {
         e <- forecast_errors(d, m$fitted, periods)
-        data.frame(Method = m$method, Parameters = m$params,
-                   MAD = e[["MAD"]], MSE = e[["MSE"]], MAPE = e[["MAPE"]],
-                   "Next forecast" = m$future[1], check.names = FALSE)
+        row <- data.frame(Method = m$method, Parameters = m$params,
+                          MAD = e[["MAD"]], MSE = e[["MSE"]], MAPE = e[["MAPE"]],
+                          "Next forecast" = m$future[1], check.names = FALSE)
+        if (!is.null(tr)) {
+          mt <- Filter(function(x) x$method == m$method, tr$run$results)
+          te <- if (length(mt)) mt[[1]]$future - tr$actual else rep(NA, tr$k)
+          nz <- tr$actual != 0
+          row[["Test MAD"]] <- mean(abs(te)); row[["Test MSE"]] <- mean(te^2)
+          row[["Test MAPE"]] <- mean(abs(te[nz] / tr$actual[nz])) * 100
+        }
+        row
       })
       tab <- do.call(rbind, rows)
-      tab <- tab[order(tab[[input$criterion]]), ]
+      key <- if (is.null(tr)) input$criterion else paste("Test", input$criterion)
+      tab <- tab[order(tab[[key]], na.last = TRUE), ]
       rownames(tab) <- NULL
+      attr(tab, "key") <- key
       tab
     })
 
@@ -164,13 +189,14 @@ compare_methods_server <- function(id) {
       }
       div(class = "kpi-row",
           kpi_tile("Best method", tab$Method[1], tab$Parameters[1]),
-          kpi_tile(paste("Best", input$criterion),
-                   paste0(fmt_num(tab[[input$criterion]][1]), if (input$criterion == "MAPE") " %" else "")),
+          kpi_tile(paste("Best", attr(tab, "key")),
+                   paste0(fmt_num(tab[[attr(tab, "key")]][1]), if (input$criterion == "MAPE") " %" else "")),
           kpi_tile("Its next-period forecast", fmt_num(tab[["Next forecast"]][1])))
     })
 
     output$bar_plot <- renderPlot({
-      tab <- table(); k <- input$criterion
+      tab <- table(); k <- attr(tab, "key")
+      tab <- tab[!is.na(tab[[k]]), ]
       tab <- tab[rev(seq_len(nrow(tab))), ]           # best at the top
       v <- tab[[k]]
       cols <- ifelse(seq_along(v) == length(v), app_colors$series[1], "#b7d3f6")
@@ -187,21 +213,29 @@ compare_methods_server <- function(id) {
 
     output$table <- renderTable({
       tab <- table()
-      tab$Method <- ifelse(seq_len(nrow(tab)) == 1, paste("★", tab$Method), tab$Method)
+      tab$Method <- ifelse(seq_len(nrow(tab)) == 1, paste("\u2605", tab$Method), tab$Method)
       tab
     }, digits = 3)
 
     output$note <- renderText({
       r <- run()
-      paste0("All methods are evaluated over periods ", r$start, " - ", length(demand()),
-             ". The best method (★) has the smallest ", input$criterion, ".")
+      tr <- test_run()
+      if (!is.null(tr)) {
+        return(paste0("Ranked by the hold-out test: every method was fitted on the first ",
+                      length(demand()) - tr$k, " periods and forecast the last ", tr$k,
+                      ". The best method (\u2605) has the smallest ", attr(table(), "key"), "."))
+      }
+      paste0("All methods are evaluated over periods ", period_label(demand(), r$start), " - ",
+             period_label(demand(), length(demand())),
+             ". The best method (\u2605) has the smallest ", input$criterion, ".")
     })
 
     output$best_plot <- renderPlot({
       m <- best(); d <- demand(); n <- length(d); h <- length(m$future)
       yr <- range(c(d, m$fitted, m$future), na.rm = TRUE); yr <- yr + c(-0.04, 0.12) * diff(yr)
       plot_setup()
-      plot_frame(c(1, n + h), yr, xlab = "Period", ylab = "Demand")
+      plot_frame(c(1, n + h), yr, xlab = "Period", ylab = "Demand", xaxt = "n")
+      axis_periods(d, h)
       lines(1:n, d, col = app_colors$ink_2, lwd = 2); points(1:n, d, pch = 16, col = app_colors$ink_2, cex = 0.9)
       lines(1:n, m$fitted, col = app_colors$series[1], lwd = 2, lty = 2)
       lines(c(n, (n + 1):(n + h)), c(m$fitted[n], m$future), col = app_colors$series[2], lwd = 2.5)
@@ -211,7 +245,7 @@ compare_methods_server <- function(id) {
     }, bg = "white", res = 96)
 
     output$download <- downloadHandler(
-      filename = function() "forecasting_methods_comparison.csv",
-      content = function(file) utils::write.csv(table(), file, row.names = FALSE))
+      filename = function() "forecasting_methods_comparison.xlsx",
+      content = function(file) writexl::write_xlsx(list(Comparison = table()), file))
   })
 }
