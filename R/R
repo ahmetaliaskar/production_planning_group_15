@@ -1,0 +1,2295 @@
+# =====================================================================
+# Shared tools for all Aggregate Planning modules
+# Nahmias, Chapter 3
+#
+# Notation:
+#   D_t   demand forecast of period t          n_t  working days
+#   K     units produced by one worker in one day
+#   K n_t units one worker produces in period t
+#   W_t   workers, H_t hired, F_t fired
+#   I_0   starting inventory, I_T required ending inventory
+#   Net demand:  D'_1 = D_1 - I_0,  D'_T = D_T + I_T,  D'_t = D_t otherwise
+#   Inventory:   I_t = cumulative production - cumulative net demand
+#                (inventory above the required ending inventory)
+#
+# Costs of a plan:
+#   Hiring         c_H x sum(H_t)
+#   Firing         c_F x sum(F_t)
+#   Holding        c_I x sum(I_t)
+#   Regular time   c_R x units made on regular time
+#   Overtime       c_O x units made on overtime
+#   Idle time      c_U x unused regular-time capacity (units)
+#   Subcontracting c_S x units bought from subcontractors
+#
+# This file contains:
+#   1) the "Data and Costs" tab (aggregate_data_ui / aggregate_data_server);
+#      its server returns one reactive that every other module uses
+#   2) building a plan table and computing its costs
+#   3) the common outputs (cost table, cumulative plot, plan tables)
+# =====================================================================
+
+
+# ---------------------------------------------------------------------
+# 1) DATA AND COSTS TAB
+# ---------------------------------------------------------------------
+
+# First column whose name contains one of the patterns.
+guess_column <- function(cols, patterns, exclude = character(0)) {
+  cand <- setdiff(cols, exclude)
+  hit <- cand[grepl(paste(patterns, collapse = "|"), tolower(cand))]
+  if (length(hit) > 0) hit[1] else if (length(cand) > 0) cand[1] else NULL
+}
+
+aggregate_data_ui <- function(id) {
+  ns <- NS(id)
+  sidebarLayout(
+    sidebarPanel(
+      helpText("Enter the data once here; every Aggregate Planning tab uses it."),
+      h4("1. Demand data"),
+      fileInput(ns("file"), "Upload data (.xlsx, .xls or .csv)",
+                accept = c(".xlsx", ".xls", ".csv")),
+      selectInput(ns("name_col"), "Period names column", choices = NULL),
+      selectInput(ns("demand_col"), "Demand forecast column", choices = NULL),
+      selectInput(ns("days_col"), "Working days column", choices = NULL),
+      textInput(ns("names"), "Period names (comma separated, you can edit them)"),
+
+      h4("2. Costs"),
+      numericInput(ns("c_hire"), "Hiring cost per worker (c_H)", value = 500, min = 0),
+      numericInput(ns("c_fire"), "Firing cost per worker (c_F)", value = 1000, min = 0),
+      numericInput(ns("c_hold"), "Holding cost per unit per period (c_I)", value = 80, min = 0),
+      numericInput(ns("c_reg"), "Regular time cost per unit (c_R)", value = 0, min = 0),
+      numericInput(ns("c_ot"), "Overtime cost per unit (c_O)", value = 0, min = 0),
+      numericInput(ns("c_idle"), "Idle time cost per unit (c_U)", value = 0, min = 0),
+      numericInput(ns("c_sub"), "Subcontracting cost per unit (c_S)", value = 0, min = 0),
+
+      h4("3. Plant data"),
+      numericInput(ns("W0"), "Starting workforce W_0", value = 300, min = 0),
+      numericInput(ns("I0"), "Starting inventory I_0", value = 500, min = 0),
+      numericInput(ns("IT"), "Required ending inventory I_T", value = 600, min = 0),
+
+      h4("4. Productivity K (units per worker per day)"),
+      radioButtons(ns("k_mode"), NULL,
+                   choices = c("Enter K directly" = "direct",
+                               "Compute K from past data" = "past")),
+      conditionalPanel("input.k_mode == 'direct'", ns = ns,
+        numericInput(ns("K"), "K", value = 0.14653, min = 0, step = 0.01)
+      ),
+      conditionalPanel("input.k_mode == 'past'", ns = ns,
+        numericInput(ns("past_units"), "Units produced", value = 245, min = 0),
+        numericInput(ns("past_workers"), "Number of workers", value = 76, min = 1),
+        numericInput(ns("past_days"), "Working days", value = 22, min = 1),
+        helpText("K = units produced / (workers x working days)")
+      )
+    ),
+    mainPanel(
+      h4(textOutput(ns("k_text"))),
+      plotOutput(ns("demand_plot"), height = "300px"),
+      h4("Data used by the Aggregate Planning tabs"),
+      tableOutput(ns("data_table"))
+    )
+  )
+}
+
+aggregate_data_server <- function(id) {
+  moduleServer(id, function(input, output, session) {
+    num <- function(x) if (is.null(x) || is.na(x)) 0 else x
+
+    data <- reactive({
+      req(input$file)
+      tryCatch(read_data_file(input$file$datapath, input$file$name),
+               error = function(e) validate(need(FALSE, conditionMessage(e))))
+    })
+
+    # Guess the columns when a file is uploaded
+    observeEvent(data(), {
+      df <- data()
+      nums <- numeric_columns(df)
+      texts <- setdiff(names(df), nums)
+      demand <- guess_column(nums, c("demand", "forecast", "talep"))
+      days <- guess_column(nums, c("day", "gun"), exclude = demand)
+      name <- if (length(texts) > 0) texts[1] else names(df)[1]
+      updateSelectInput(session, "name_col", choices = names(df), selected = name)
+      updateSelectInput(session, "demand_col", choices = nums, selected = demand)
+      updateSelectInput(session, "days_col", choices = nums, selected = days)
+    })
+
+    # Fill the editable period names from the chosen column
+    observeEvent(list(data(), input$name_col), {
+      req(input$name_col %in% names(data()))
+      updateTextInput(session, "names",
+                      value = paste(as.character(data()[[input$name_col]]), collapse = ", "))
+    })
+
+    K <- reactive({
+      if (input$k_mode == "direct") num(input$K)
+      else num(input$past_units) / (max(num(input$past_workers), 1e-9) * max(num(input$past_days), 1e-9))
+    })
+
+    ap <- reactive({
+      df <- data()
+      req(input$demand_col %in% names(df), input$days_col %in% names(df))
+      D <- as_number(df[[input$demand_col]])
+      n <- as_number(df[[input$days_col]])
+      keep <- !is.na(D) & !is.na(n)
+      D <- D[keep]; n <- n[keep]
+      Tn <- length(D)
+      validate(need(Tn >= 2, "At least 2 periods are needed."),
+               need(all(n > 0), "Working days must be positive."),
+               need(K() > 0, "K must be positive."))
+      nm <- trimws(strsplit(input$names, ",")[[1]])
+      if (length(nm) != Tn) {
+        nm <- if (input$name_col %in% names(df)) as.character(df[[input$name_col]])[keep]
+              else paste("Period", 1:Tn)
+      }
+      I0 <- num(input$I0); IT <- num(input$IT)
+      Dnet <- D
+      Dnet[1] <- Dnet[1] - I0
+      Dnet[Tn] <- Dnet[Tn] + IT
+      list(periods = nm, D = D, days = n, Dnet = Dnet, K = K(),
+           W0 = num(input$W0), I0 = I0, IT = IT,
+           costs = list(hire = num(input$c_hire), fire = num(input$c_fire),
+                        hold = num(input$c_hold), reg = num(input$c_reg),
+                        ot = num(input$c_ot), idle = num(input$c_idle),
+                        sub = num(input$c_sub)))
+    })
+
+    output$k_text <- renderText(paste0("K = ", round(K(), 5), " units per worker per day"))
+
+    output$data_table <- renderTable({
+      a <- ap()
+      data.frame(Period = a$periods, "Demand forecast" = a$D,
+                 "Working days" = a$days, "Net demand D'" = a$Dnet,
+                 "Units per worker (K n_t)" = round(a$K * a$days, 3),
+                 "Cum. net demand" = cumsum(a$Dnet), check.names = FALSE)
+    })
+
+    output$demand_plot <- renderPlot({
+      a <- ap()
+      barplot(a$Dnet, names.arg = a$periods, col = "#9DB4CF", border = NA,
+              ylab = "Units", main = "Net demand by period")
+    })
+
+    ap
+  })
+}
+
+# Stops a module with a friendly message when no data has been entered.
+ap_require <- function(ap) {
+  validate(need(tryCatch({ ap(); TRUE }, error = function(e) FALSE),
+                "First upload the demand data in the 'Data and Costs' tab."))
+  ap()
+}
+
+
+# ---------------------------------------------------------------------
+# 2) PLAN TABLE AND COSTS
+# ---------------------------------------------------------------------
+
+# Builds the plan table from the workforce W and (optionally) overtime O,
+# idle units U and subcontracted units S of every period.
+ap_build_plan <- function(ap, W, O = 0, U = 0, S = 0) {
+  Tn <- length(ap$Dnet)
+  full <- function(x) if (length(x) == 1) rep(x, Tn) else x
+  W <- full(W); O <- full(O); U <- full(U); S <- full(S)
+  per_worker <- ap$K * ap$days
+  regular <- per_worker * W - U
+  produced <- regular + O + S
+  dW <- diff(c(ap$W0, W))
+  data.frame(Period = ap$periods,
+             "Net demand" = ap$Dnet,
+             "Units per worker" = per_worker,
+             Workers = W,
+             Hired = pmax(dW, 0),
+             Fired = pmax(-dW, 0),
+             "Regular production" = regular,
+             Overtime = O,
+             "Idle (units)" = U,
+             Subcontract = S,
+             "Cum. production" = cumsum(produced),
+             "Cum. net demand" = cumsum(ap$Dnet),
+             Inventory = cumsum(produced - ap$Dnet),
+             check.names = FALSE)
+}
+
+# Cost of each item and the total.
+ap_costs <- function(plan, ap) {
+  k <- ap$costs
+  items <- c("Hiring"         = k$hire * sum(plan$Hired),
+             "Firing"         = k$fire * sum(plan$Fired),
+             "Holding"        = k$hold * sum(pmax(plan$Inventory, 0)),
+             "Regular time"   = k$reg  * sum(plan[["Regular production"]]),
+             "Overtime"       = k$ot   * sum(plan$Overtime),
+             "Idle time"      = k$idle * sum(plan[["Idle (units)"]]),
+             "Subcontracting" = k$sub  * sum(plan$Subcontract))
+  c(items, "Total" = sum(items))
+}
+
+is_whole <- function(x) all(abs(x - round(x)) < 1e-6)
+
+
+# ---------------------------------------------------------------------
+# 3) COMMON OUTPUTS
+# ---------------------------------------------------------------------
+# Every module builds a result list:
+#   title  text
+#   plans  named list of 1 or 2 plan tables, e.g.
+#          list("Original" = ..., "Whole workers" = ...)
+#   note   extra text (optional)
+
+ap_results_ui <- function(ns) {
+  tagList(
+    h4(textOutput(ns("headline"))),
+    p(textOutput(ns("note"))),
+    plotOutput(ns("cum_plot"), height = "320px"),
+    h4("Cost of each item"),
+    tableOutput(ns("cost_table")),
+    h4(textOutput(ns("plan_title_1"))),
+    tableOutput(ns("plan_table_1")),
+    h4(textOutput(ns("plan_title_2"))),
+    tableOutput(ns("plan_table_2"))
+  )
+}
+
+# Hides the overtime / idle / subcontract columns when they are all zero.
+ap_display_plan <- function(plan) {
+  for (col in c("Overtime", "Idle (units)", "Subcontract")) {
+    if (all(abs(plan[[col]]) < 1e-9)) plan[[col]] <- NULL
+  }
+  num <- vapply(plan, is.numeric, logical(1))
+  plan[num] <- lapply(plan[num], function(x) round(x, 2))
+  plan
+}
+
+render_ap_results <- function(output, ap, result) {
+  output$headline <- renderText({
+    r <- result()
+    tot <- vapply(r$plans, function(p) ap_costs(p, ap())[["Total"]], numeric(1))
+    paste0(r$title, "  -  total cost: ",
+           paste(paste0(names(tot), " ", format(round(tot, 2), big.mark = ",")),
+                 collapse = "  |  "))
+  })
+
+  output$note <- renderText({
+    r <- result()
+    short <- vapply(r$plans, function(p) any(p$Inventory < -1e-6), logical(1))
+    paste(c(r$note,
+            if (any(short)) "Warning: inventory becomes negative (shortage) in some periods."),
+          collapse = " ")
+  })
+
+  output$cum_plot <- renderPlot({
+    r <- result(); a <- ap()
+    Tn <- length(a$Dnet)
+    cols <- c("#2F6FB0", "#B4501E")
+    ys <- c(0, cumsum(a$Dnet), unlist(lapply(r$plans, function(p) p[["Cum. production"]])))
+    plot(0:Tn, c(0, cumsum(a$Dnet)), type = "o", pch = 19, col = "grey30", lwd = 2,
+         ylim = range(ys), xaxt = "n", xlab = "Period",
+         ylab = "Cumulative units",
+         main = "Cumulative production vs cumulative net demand")
+    axis(1, at = 0:Tn, labels = c("Start", a$periods))
+    for (i in seq_along(r$plans)) {
+      lines(0:Tn, c(0, r$plans[[i]][["Cum. production"]]), type = "o",
+            pch = 17, lty = i + 1, col = cols[i])
+    }
+    legend("topleft", bty = "n",
+           legend = c("Cumulative net demand", paste("Cum. production -", names(r$plans))),
+           col = c("grey30", cols[seq_along(r$plans)]),
+           pch = c(19, rep(17, length(r$plans))), lty = c(1, seq_along(r$plans) + 1))
+  })
+
+  output$cost_table <- renderTable({
+    r <- result(); a <- ap()
+    costs <- lapply(r$plans, function(p) ap_costs(p, a))
+    out <- data.frame(Item = names(costs[[1]]))
+    for (nm in names(costs)) out[[nm]] <- round(unname(costs[[nm]]), 2)
+    out
+  })
+
+  output$plan_title_1 <- renderText(paste("Plan -", names(result()$plans)[1]))
+  output$plan_table_1 <- renderTable(ap_display_plan(result()$plans[[1]]))
+  output$plan_title_2 <- renderText({
+    p <- result()$plans
+    if (length(p) >= 2) paste("Plan -", names(p)[2]) else ""
+  })
+  output$plan_table_2 <- renderTable({
+    p <- result()$plans
+    if (length(p) >= 2) ap_display_plan(p[[2]]) else NULL
+  })
+}
+
+# The original plan and, if workers are fractional, the whole-worker plan.
+ap_with_rounding <- function(original, rounded_fn) {
+  W <- original$Workers
+  if (is_whole(W)) {
+    list(plans = list("Original" = original),
+         note = "The number of workers is already a whole number in every period.")
+  } else {
+    list(plans = list("Original (fractional workers)" = original,
+                      "Whole workers (rounded up)" = rounded_fn()),
+         note = "Workers were fractional, so a second plan with the workers rounded up is shown.")
+  }
+}
+
+# A complete page: the module's own controls on the left, results on the right.
+ap_page <- function(ns, explanation, ..., extra_main = NULL) {
+  sidebarLayout(
+    sidebarPanel(helpText(explanation), ...,
+                 helpText("Data, costs, K and plant data come from the 'Data and Costs' tab.")),
+    mainPanel(ap_results_ui(ns), extra_main)
+  )
+}
+
+# =====================================================================
+# Topic: Box-Jenkins models - AR(p), MA(q), ARMA(p,q), ARIMA(p,d,q)
+# Nahmias, Chapter 2
+#
+# AR(p):    D_t = mu + phi_1 D_{t-1} + ... + phi_p D_{t-p} + eps_t
+# MA(q):    D_t = mu + eps_t - theta_1 eps_{t-1} - ... - theta_q eps_{t-q}
+# ARMA:     both parts together
+# ARIMA:    an ARMA(p,q) model for the series differenced d times
+#           (d = 1: D_t - D_{t-1}, d = 2: difference of the differences)
+#
+# Model identification: ACF and PACF plots
+#   AR(p): PACF cuts off after lag p, ACF dies down
+#   MA(q): ACF cuts off after lag q, PACF dies down
+# Parameters are estimated with R's arima() (maximum likelihood).
+# Note: R writes the MA part with "+" signs, so its ma coefficients
+#       are -theta of the textbook form.
+#
+# The same module is used four times (AR, MA, ARMA, ARIMA tabs);
+# `type` decides which orders the user can choose.
+# =====================================================================
+
+
+# ---------------------------------------------------------------------
+# 1) HELPER FUNCTIONS
+# ---------------------------------------------------------------------
+
+# Fits the model; returns NULL if R cannot estimate it.
+box_jenkins_fit <- function(d, p, dd, q, include_mean = TRUE) {
+  tryCatch(
+    suppressWarnings(stats::arima(d, order = c(p, dd, q),
+                                  include.mean = include_mean && dd == 0,
+                                  method = "CSS-ML")),
+    error = function(e) NULL)
+}
+
+# One-step forecasts in the data period: F_t = D_t - residual_t
+box_jenkins_fitted <- function(d, fit) as.numeric(d - stats::residuals(fit))
+
+# Which (p, d, q) combinations to try for each model type.
+box_jenkins_grid <- function(type, pmax, dmax, qmax) {
+  switch(type,
+    AR    = expand.grid(p = 1:pmax, d = 0, q = 0),
+    MA    = expand.grid(p = 0, d = 0, q = 1:qmax),
+    ARMA  = expand.grid(p = 1:pmax, d = 0, q = 1:qmax),
+    ARIMA = expand.grid(p = 0:pmax, d = 1:dmax, q = 0:qmax))
+}
+
+box_jenkins_search <- function(d, grid, include_mean, criterion) {
+  rows <- lapply(seq_len(nrow(grid)), function(i) {
+    p <- grid$p[i]; dd <- grid$d[i]; q <- grid$q[i]
+    fit <- box_jenkins_fit(d, p, dd, q, include_mean)
+    if (is.null(fit)) return(NULL)
+    err <- forecast_errors(d, box_jenkins_fitted(d, fit), (dd + 1):length(d))
+    data.frame(p = p, d = dd, q = q, AIC = fit$aic,
+               MAD = err[["MAD"]], MSE = err[["MSE"]], MAPE = err[["MAPE"]])
+  })
+  out <- do.call(rbind, rows)
+  if (is.null(out)) return(NULL)
+  out <- out[order(out[[criterion]]), , drop = FALSE]
+  rownames(out) <- NULL
+  out
+}
+
+
+# ---------------------------------------------------------------------
+# 2) SCREEN (UI)
+# ---------------------------------------------------------------------
+box_jenkins_ui <- function(id, type = "ARIMA") {
+  ns <- NS(id)
+  has_p <- type %in% c("AR", "ARMA", "ARIMA")
+  has_d <- type == "ARIMA"
+  has_q <- type %in% c("MA", "ARMA", "ARIMA")
+  min_order <- if (type == "ARIMA") 0 else 1
+  formula_text <- switch(type,
+    AR    = "AR(p): D_t depends on its own p previous values.",
+    MA    = "MA(q): D_t depends on the q previous random errors.",
+    ARMA  = "ARMA(p,q): AR and MA parts together.",
+    ARIMA = "ARIMA(p,d,q): ARMA(p,q) for the series differenced d times.")
+
+  sidebarLayout(
+    sidebarPanel(
+      helpText(formula_text),
+      series_input_ui(ns("data")),
+      parameter_mode_ui(ns,
+        manual = tagList(
+          if (has_p) numericInput(ns("p"), "p (AR order)", value = 1,
+                                  min = min_order, max = 6, step = 1),
+          if (has_d) numericInput(ns("d"), "d (number of differences)", value = 1,
+                                  min = 0, max = 2, step = 1),
+          if (has_q) numericInput(ns("q"), "q (MA order)", value = 1,
+                                  min = min_order, max = 6, step = 1)
+        ),
+        auto = tagList(
+          if (has_p) numericInput(ns("pmax"), "Largest p to try", value = 3,
+                                  min = 1, max = 6, step = 1),
+          if (has_d) numericInput(ns("dmax"), "Largest d to try", value = 2,
+                                  min = 1, max = 2, step = 1),
+          if (has_q) numericInput(ns("qmax"), "Largest q to try", value = 3,
+                                  min = 1, max = 6, step = 1),
+          if (has_d) helpText("AIC values are only comparable between models",
+                              "with the same d.")
+        ),
+        criteria = c("AIC", "MAD", "MSE", "MAPE")
+      ),
+      if (!has_d) checkboxInput(ns("mean"), "Include a constant (mean)", value = TRUE),
+      horizon_ui(ns)
+    ),
+    mainPanel(
+      h4("Model identification: ACF and PACF"),
+      plotOutput(ns("acf_plot"), height = "300px"),
+      h4("Parameter estimates"),
+      tableOutput(ns("coef_table")),
+      tableOutput(ns("model_table")),
+      forecast_results_ui(ns)
+    )
+  )
+}
+
+
+# ---------------------------------------------------------------------
+# 3) CALCULATIONS (SERVER)
+# ---------------------------------------------------------------------
+box_jenkins_server <- function(id, type = "ARIMA") {
+  moduleServer(id, function(input, output, session) {
+    demand <- series_input_server("data")
+    include_mean <- reactive(if (type == "ARIMA") FALSE else isTRUE(input$mean))
+    get_order <- function(name, default) {
+      v <- input[[name]]
+      if (is.null(v) || is.na(v)) default else as.integer(v)
+    }
+
+    # chosen orders and the fitted model
+    model <- reactive({
+      d <- demand()
+      search <- NULL
+      if (input$mode == "manual") {
+        p  <- get_order("p", 0); dd <- get_order("d", 0); q <- get_order("q", 0)
+        validate(need(p + q + dd > 0, "Choose at least one order greater than 0."))
+      } else {
+        grid <- box_jenkins_grid(type, get_order("pmax", 1), get_order("dmax", 1),
+                                 get_order("qmax", 1))
+        search <- withProgress(message = "Fitting models...",
+                               box_jenkins_search(d, grid, include_mean(), input$criterion))
+        validate(need(!is.null(search), "No model could be estimated for this data."))
+        p <- search$p[1]; dd <- search$d[1]; q <- search$q[1]
+      }
+      validate(need(length(d) > p + dd + q + 2,
+                    "Not enough observations for these orders."))
+      fit <- box_jenkins_fit(d, p, dd, q, include_mean())
+      validate(need(!is.null(fit), "R could not estimate this model. Try other orders."))
+      list(fit = fit, p = p, d = dd, q = q, search = search)
+    })
+
+    output$acf_plot <- renderPlot({
+      d <- demand()
+      dd <- if (input$mode == "manual") get_order("d", 0) else model()$d
+      series <- list("Series" = d)
+      if (dd >= 1) series[["1st difference"]] <- diff(d)
+      if (dd >= 2) series[["2nd difference"]] <- diff(d, differences = 2)
+      par(mfrow = c(length(series), 2), mar = c(4, 4, 2.5, 1))
+      for (nm in names(series)) {
+        stats::acf(series[[nm]], main = paste("ACF -", nm))
+        stats::pacf(series[[nm]], main = paste("PACF -", nm))
+      }
+    })
+
+    output$coef_table <- renderTable({
+      fit <- model()$fit
+      est <- stats::coef(fit)
+      if (length(est) == 0) return(data.frame(Note = "The model has no coefficients."))
+      se <- sqrt(diag(fit$var.coef))
+      data.frame(Coefficient = names(est), Estimate = est,
+                 "Std. error" = se, "t value" = est / se, check.names = FALSE)
+    }, digits = 4)
+
+    output$model_table <- renderTable({
+      fit <- model()$fit
+      data.frame(Measure = c("sigma^2 (error variance)", "Log-likelihood", "AIC"),
+                 Value = c(fit$sigma2, fit$loglik, fit$aic))
+    }, digits = 3)
+
+    result <- reactive({
+      d <- demand(); n <- length(d)
+      m <- model()
+      pr <- stats::predict(m$fit, n.ahead = horizon(input))
+      list(method  = paste0(type, " model: ARIMA(", m$p, ",", m$d, ",", m$q, ")"),
+           d = d, fitted = box_jenkins_fitted(d, m$fit),
+           future  = as.numeric(pr$pred),
+           future_lower = as.numeric(pr$pred - 1.96 * pr$se),
+           future_upper = as.numeric(pr$pred + 1.96 * pr$se),
+           periods = (m$d + 1):n,
+           params  = data.frame(Parameter = c("p", "d", "q"),
+                                Value = c(m$p, m$d, m$q)),
+           search  = m$search)
+    })
+
+    render_forecast_results(output, result)
+  })
+}
+
+# =====================================================================
+# Topic: Zero-inventory (chase) plan                    (heuristic plan)
+# Nahmias, Chapter 3
+#
+# The workforce follows demand so that no inventory is carried:
+#   W_t = D'_t / (K n_t)       (workers needed in period t)
+#   H_t = max(W_t - W_{t-1}, 0),  F_t = max(W_{t-1} - W_t, 0)
+# Whole workers: W_t is rounded up, ceil(D'_t / (K n_t)); the extra units
+# produced are carried as inventory (as in the textbook table).
+# =====================================================================
+
+
+# ---------------------------------------------------------------------
+# 1) HELPER FUNCTIONS
+# ---------------------------------------------------------------------
+chase_plan_workers <- function(ap) pmax(ap$Dnet, 0) / (ap$K * ap$days)
+
+
+# ---------------------------------------------------------------------
+# 2) SCREEN (UI)
+# ---------------------------------------------------------------------
+chase_plan_ui <- function(id) {
+  ns <- NS(id)
+  ap_page(ns, "W_t = D'_t / (K n_t): hire and fire every period so that production equals net demand.")
+}
+
+
+# ---------------------------------------------------------------------
+# 3) CALCULATIONS (SERVER)
+# ---------------------------------------------------------------------
+chase_plan_server <- function(id, ap) {
+  moduleServer(id, function(input, output, session) {
+    result <- reactive({
+      a <- ap_require(ap)
+      W <- chase_plan_workers(a)
+      r <- ap_with_rounding(ap_build_plan(a, W),
+                            function() ap_build_plan(a, ceiling(W - 1e-9)))
+      r$title <- "Zero-inventory (chase) plan"
+      r
+    })
+    render_ap_results(output, ap, result)
+  })
+}
+
+# =====================================================================
+# Topic: Disaggregating the aggregate plan - square-root rule
+# Nahmias, Chapter 3 (Bitran and Hax)
+#
+# The aggregate production X of a period is split among product families
+# j = 1..J with setup cost K_j and demand lambda_j:
+#   minimize  sum_j K_j lambda_j / Y_j      (setup cost of the runs)
+#   s.t.      sum_j Y_j = X,   a_j <= Y_j <= b_j
+# Without bounds the solution is the square-root rule:
+#   Y_j = X * sqrt(K_j lambda_j) / sum_i sqrt(K_i lambda_i)
+# With bounds: Y_j = min(b_j, max(a_j, c * sqrt(K_j lambda_j))), where the
+# constant c is chosen so that the Y_j add up to X (found by bisection).
+# =====================================================================
+
+
+# ---------------------------------------------------------------------
+# 1) HELPER FUNCTIONS
+# ---------------------------------------------------------------------
+disaggregation_split <- function(X, setup, demand, lower, upper) {
+  r <- sqrt(setup * demand)
+  y_of <- function(c) pmin(upper, pmax(lower, c * r))
+  if (X <= sum(lower)) return(lower)
+  if (X >= sum(upper)) return(upper)
+  lo <- 0; hi <- 1
+  while (sum(y_of(hi)) < X) hi <- hi * 2
+  for (i in 1:200) {
+    mid <- (lo + hi) / 2
+    if (sum(y_of(mid)) < X) lo <- mid else hi <- mid
+  }
+  y_of(hi)
+}
+
+# Reads the family table typed in the text box.
+parse_families <- function(text) {
+  df <- utils::read.csv(text = text, strip.white = TRUE, check.names = FALSE)
+  validate(need(ncol(df) >= 3, "Give at least: Family, Setup cost, Demand."))
+  out <- data.frame(Family = as.character(df[[1]]),
+                    Setup = as_number(df[[2]]),
+                    Demand = as_number(df[[3]]),
+                    Lower = if (ncol(df) >= 4) as_number(df[[4]]) else 0,
+                    Upper = if (ncol(df) >= 5) as_number(df[[5]]) else Inf)
+  out$Lower[is.na(out$Lower)] <- 0
+  out$Upper[is.na(out$Upper)] <- Inf
+  validate(need(all(!is.na(out$Setup) & !is.na(out$Demand)),
+                "Setup cost and demand must be numbers."),
+           need(all(out$Setup >= 0 & out$Demand >= 0), "Values cannot be negative."),
+           need(all(out$Lower <= out$Upper), "A lower bound is larger than its upper bound."))
+  out
+}
+
+
+# ---------------------------------------------------------------------
+# 2) SCREEN (UI)
+# ---------------------------------------------------------------------
+disaggregation_ui <- function(id) {
+  ns <- NS(id)
+  sidebarLayout(
+    sidebarPanel(
+      helpText("Y_j = X * sqrt(K_j lambda_j) / sum sqrt(K_i lambda_i), kept within the bounds a_j <= Y_j <= b_j."),
+      textAreaInput(ns("families"),
+                    "Product families (one per line: Family, Setup cost, Demand, Lower bound, Upper bound)",
+                    value = paste("Family, Setup cost, Demand, Lower bound, Upper bound",
+                                  "A, 1200, 400, 0, 5000",
+                                  "B, 800, 250, 0, 5000",
+                                  "C, 2000, 600, 100, 5000", sep = "\n"),
+                    rows = 6),
+      radioButtons(ns("source"), "Aggregate production X of each period",
+                   choices = c("Type the values" = "manual",
+                               "Use the net demand from 'Data and Costs'" = "data")),
+      conditionalPanel("input.source == 'manual'", ns = ns,
+        textInput(ns("X"), "X values (comma separated, one per period)",
+                  value = "1000, 1200, 900"))
+    ),
+    mainPanel(
+      h4("Square-root weights"),
+      tableOutput(ns("weight_table")),
+      plotOutput(ns("split_plot"), height = "320px"),
+      h4("Production of each family by period"),
+      tableOutput(ns("split_table"))
+    )
+  )
+}
+
+
+# ---------------------------------------------------------------------
+# 3) CALCULATIONS (SERVER)
+# ---------------------------------------------------------------------
+disaggregation_server <- function(id, ap) {
+  moduleServer(id, function(input, output, session) {
+    families <- reactive(parse_families(input$families))
+
+    X <- reactive({
+      if (input$source == "data") {
+        a <- ap_require(ap)
+        setNames(pmax(a$Dnet, 0), a$periods)
+      } else {
+        x <- as_number(trimws(strsplit(input$X, ",")[[1]]))
+        validate(need(length(x) >= 1 && all(!is.na(x) & x >= 0),
+                      "Type the X values as non-negative numbers separated by commas."))
+        setNames(x, paste("Period", seq_along(x)))
+      }
+    })
+
+    split <- reactive({
+      f <- families(); x <- X()
+      Y <- t(vapply(x, function(v) disaggregation_split(v, f$Setup, f$Demand, f$Lower, f$Upper),
+                    numeric(nrow(f))))
+      if (nrow(f) == 1) Y <- matrix(Y, ncol = 1)
+      colnames(Y) <- f$Family
+      Y
+    })
+
+    output$weight_table <- renderTable({
+      f <- families()
+      r <- sqrt(f$Setup * f$Demand)
+      data.frame(Family = f$Family, "Setup cost K_j" = f$Setup, "Demand lambda_j" = f$Demand,
+                 "sqrt(K_j lambda_j)" = round(r, 3), "Share (no bounds)" = round(r / sum(r), 4),
+                 "Lower a_j" = f$Lower, "Upper b_j" = f$Upper, check.names = FALSE)
+    })
+
+    output$split_table <- renderTable({
+      Y <- split(); x <- X(); f <- families()
+      out <- data.frame(Period = names(x), "Aggregate X" = x, round(Y, 2), check.names = FALSE)
+      out$Check <- ifelse(abs(rowSums(Y) - x) < 1e-6, "sum = X",
+                          ifelse(x < sum(f$Lower), "X below sum of lower bounds",
+                                 "X above sum of upper bounds"))
+      out
+    })
+
+    output$split_plot <- renderPlot({
+      Y <- split()
+      barplot(t(Y), names.arg = names(X()), col = hcl.colors(ncol(Y), "Blues 3"),
+              border = NA, legend.text = colnames(Y), ylab = "Units",
+              main = "Aggregate production split among families",
+              args.legend = list(bty = "n", x = "topright"))
+    })
+  })
+}
+
+# =====================================================================
+# Topic: Simple Exponential Smoothing (SES)             (stationary series)
+# Nahmias, Chapter 2
+#
+# S_t = alpha D_t + (1 - alpha) S_{t-1}        0 < alpha <= 1
+# F_t = S_{t-1}   (forecast for period t made at the end of t-1)
+# The forecast for every future period is S_n.
+# Initial value S_0: from a regression line (its value at t = 0)
+#                    or typed by the user.
+# =====================================================================
+
+
+# ---------------------------------------------------------------------
+# 1) HELPER FUNCTIONS
+# ---------------------------------------------------------------------
+
+# Returns the smoothed values S_0..S_n and the forecasts F_1..F_n.
+exponential_smoothing_run <- function(d, alpha, S0) {
+  n <- length(d)
+  S <- numeric(n)
+  prev <- S0
+  F <- numeric(n)
+  for (t in 1:n) {
+    F[t] <- prev
+    S[t] <- alpha * d[t] + (1 - alpha) * prev
+    prev <- S[t]
+  }
+  list(S = S, F = F)
+}
+
+
+# ---------------------------------------------------------------------
+# 2) SCREEN (UI)
+# ---------------------------------------------------------------------
+exponential_smoothing_ui <- function(id) {
+  ns <- NS(id)
+  forecast_page(ns,
+    "S_t = alpha D_t + (1 - alpha) S_(t-1);  F_t = S_(t-1).",
+    parameter_mode_ui(ns,
+      manual = numericInput(ns("alpha"), "alpha (0 < alpha <= 1)",
+                            value = 0.2, min = 0.01, max = 1, step = 0.05)
+    ),
+    initial_values_ui(ns, slope = FALSE)
+  )
+}
+
+
+# ---------------------------------------------------------------------
+# 3) CALCULATIONS (SERVER)
+# ---------------------------------------------------------------------
+exponential_smoothing_server <- function(id) {
+  moduleServer(id, function(input, output, session) {
+    demand <- series_input_server("data")
+    observeEvent(demand(), suggest_initial_values(session, demand()))
+
+    result <- reactive({
+      d <- demand(); n <- length(d)
+      S0 <- initial_values(input, d)[["level"]]
+      search <- NULL
+      if (input$mode == "manual") {
+        req(input$alpha)
+        alpha <- input$alpha
+        validate(need(alpha > 0 && alpha <= 1, "alpha must be in (0, 1]."))
+      } else {
+        search <- search_parameters(
+          data.frame(alpha = seq(0.01, 1, by = 0.01)),
+          function(p) forecast_errors(d, exponential_smoothing_run(d, p[["alpha"]], S0)$F, 1:n),
+          input$criterion)
+        alpha <- search$alpha[1]
+      }
+      run <- exponential_smoothing_run(d, alpha, S0)
+      list(method  = paste0("Simple exponential smoothing (alpha = ", alpha, ")"),
+           d = d, fitted = run$F,
+           future  = rep(run$S[n], horizon(input)),
+           periods = 1:n,
+           params  = data.frame(Parameter = c("alpha", "S0 (initial level)"),
+                                Value = c(alpha, S0)),
+           detail  = data.frame("S_t" = run$S, check.names = FALSE),
+           search  = search)
+    })
+
+    render_forecast_results(output, result)
+  })
+}
+
+# =====================================================================
+# Shared tools for all Forecasting modules
+# Nahmias, Chapter 2
+#
+# Notation used in every module:
+#   D_t  = observed demand in period t        (t = 1, ..., n)
+#   F_t  = one-step-ahead forecast for period t, made at the end of t-1
+#   e_t  = F_t - D_t                           (forecast error)
+#   MAD  = mean of |e_t|
+#   MSE  = mean of e_t^2
+#   MAPE = mean of |e_t / D_t| x 100
+#
+# This file has no tab of its own. It contains:
+#   1) reading Excel / csv files
+#   2) error measures and the parameter search
+#   3) small pieces of screen used by every module
+#   4) the common outputs (plot, error table, period table)
+# =====================================================================
+
+
+# ---------------------------------------------------------------------
+# 1) READING THE DATA FILE
+# ---------------------------------------------------------------------
+
+# Reads an .xlsx / .xls / .csv file into a data frame.
+# csv files written by a Turkish Excel use ";" as the separator and ","
+# as the decimal mark, so the separator is detected from the first line.
+read_data_file <- function(path, file_name) {
+  ext <- tolower(tools::file_ext(file_name))
+  if (ext %in% c("xlsx", "xls")) {
+    return(as.data.frame(readxl::read_excel(path)))
+  }
+  if (ext %in% c("csv", "txt")) {
+    first_line <- readLines(path, n = 1, warn = FALSE)
+    n_semicolon <- lengths(regmatches(first_line, gregexpr(";", first_line)))
+    n_comma     <- lengths(regmatches(first_line, gregexpr(",", first_line)))
+    if (n_semicolon > n_comma) {
+      return(utils::read.csv(path, sep = ";", dec = ",", check.names = FALSE,
+                             fileEncoding = "UTF-8-BOM"))
+    }
+    return(utils::read.csv(path, check.names = FALSE, fileEncoding = "UTF-8-BOM"))
+  }
+  stop("Please upload an .xlsx, .xls or .csv file.")
+}
+
+# Turns a column into numbers ("1.234,5" style text is also accepted).
+as_number <- function(x) {
+  if (is.numeric(x)) return(as.numeric(x))
+  x <- trimws(as.character(x))
+  x <- ifelse(grepl(",", x) & !grepl("\\.", x), sub(",", ".", x), x)
+  suppressWarnings(as.numeric(x))
+}
+
+# Names of the columns that contain numbers.
+numeric_columns <- function(df) {
+  ok <- vapply(df, function(col) {
+    v <- as_number(col)
+    sum(!is.na(v)) >= 2 && sum(!is.na(v)) >= 0.8 * sum(!is.na(col) & col != "")
+  }, logical(1))
+  names(df)[ok]
+}
+
+# Screen part: file upload + column choice (a small module of its own).
+series_input_ui <- function(id) {
+  ns <- NS(id)
+  tagList(
+    fileInput(ns("file"), "Upload data (.xlsx, .xls or .csv)",
+              accept = c(".xlsx", ".xls", ".csv")),
+    selectInput(ns("column"), "Series (demand column)", choices = NULL)
+  )
+}
+
+# Returns a reactive with the demand vector of the chosen column.
+series_input_server <- function(id) {
+  moduleServer(id, function(input, output, session) {
+    data <- reactive({
+      req(input$file)
+      tryCatch(read_data_file(input$file$datapath, input$file$name),
+               error = function(e) validate(need(FALSE, conditionMessage(e))))
+    })
+    observeEvent(data(), {
+      cols <- numeric_columns(data())
+      updateSelectInput(session, "column", choices = cols,
+                        selected = tail(cols, 1))
+    })
+    reactive({
+      req(input$column, input$column %in% names(data()))
+      d <- as_number(data()[[input$column]])
+      d <- d[!is.na(d)]
+      validate(need(length(d) >= 3, "The series needs at least 3 numbers."))
+      d
+    })
+  })
+}
+
+
+# ---------------------------------------------------------------------
+# 2) ERROR MEASURES AND PARAMETER SEARCH
+# ---------------------------------------------------------------------
+
+# MAD, MSE and MAPE over the given periods (periods without a forecast are skipped).
+forecast_errors <- function(d, F, periods) {
+  periods <- periods[periods >= 1 & periods <= length(d)]
+  periods <- periods[!is.na(F[periods])]
+  if (length(periods) == 0) return(c(MAD = NA, MSE = NA, MAPE = NA))
+  e  <- F[periods] - d[periods]
+  nz <- d[periods] != 0
+  c(MAD  = mean(abs(e)),
+    MSE  = mean(e^2),
+    MAPE = if (any(nz)) mean(abs(e[nz] / d[periods][nz])) * 100 else NA)
+}
+
+# Tries every row of `grid` (a data frame of parameter values).
+# `evaluate` takes one row (named vector) and returns c(MAD, MSE, MAPE).
+# The result is sorted so that the best row (by `criterion`) is first.
+search_parameters <- function(grid, evaluate, criterion) {
+  errs <- t(apply(grid, 1, function(p) evaluate(p)))
+  out <- cbind(grid, as.data.frame(errs))
+  out <- out[order(out[[criterion]]), , drop = FALSE]
+  rownames(out) <- NULL
+  out
+}
+
+# Search for smoothing constants in (0, 1]:
+# first a coarse grid, then a fine grid (step 0.01) around the best point.
+search_smoothing_constants <- function(names, evaluate, criterion, coarse = 0.05) {
+  coarse_grid <- expand.grid(setNames(rep(list(seq(coarse, 1, by = coarse)),
+                                          length(names)), names))
+  first <- search_parameters(coarse_grid, evaluate, criterion)
+  ranges <- lapply(names, function(nm) {
+    v <- first[1, nm]
+    unique(round(seq(max(0.01, v - coarse), min(1, v + coarse), by = 0.01), 2))
+  })
+  fine_grid <- expand.grid(setNames(ranges, names))
+  search_parameters(fine_grid, evaluate, criterion)
+}
+
+# Initial level and slope from a regression line D_t = a + b t  (t = 1..n).
+# S0 = a (the line's value at t = 0), G0 = b.
+regression_start <- function(d) {
+  t <- seq_along(d)
+  fit <- stats::lm(d ~ t)
+  c(level = unname(stats::coef(fit)[1]), slope = unname(stats::coef(fit)[2]))
+}
+
+# Position of period t inside a season of length N  (1, 2, ..., N).
+season_position <- function(t, N) ((t - 1) %% N) + 1
+
+
+# ---------------------------------------------------------------------
+# 3) SMALL SCREEN PIECES USED BY THE MODULES
+# ---------------------------------------------------------------------
+
+# "Enter manually" / "Search for the best values" choice.
+parameter_mode_ui <- function(ns, manual, auto = NULL,
+                              criteria = c("MAD", "MSE", "MAPE")) {
+  tagList(
+    radioButtons(ns("mode"), "Parameters",
+                 choices = c("Enter manually" = "manual",
+                             "Search for the best values" = "auto")),
+    conditionalPanel("input.mode == 'manual'", ns = ns, manual),
+    conditionalPanel("input.mode == 'auto'", ns = ns, auto,
+                     selectInput(ns("criterion"), "Choose the best values by",
+                                 choices = criteria))
+  )
+}
+
+# Initial values: from a regression line, or typed by the user.
+initial_values_ui <- function(ns, slope = TRUE) {
+  tagList(
+    radioButtons(ns("init"), "Initial values",
+                 choices = c("Fit a regression line to the data" = "regression",
+                             "Enter manually" = "manual")),
+    conditionalPanel("input.init == 'manual'", ns = ns,
+      numericInput(ns("S0"), "Initial level S0", value = 0),
+      if (slope) numericInput(ns("G0"), "Initial slope G0", value = 0)
+    )
+  )
+}
+
+# Returns c(level, slope) according to the user's choice.
+initial_values <- function(input, d) {
+  if (identical(input$init, "manual")) {
+    req(!is.null(input$S0), !is.na(input$S0))
+    G0 <- if (is.null(input$G0) || is.na(input$G0)) 0 else input$G0
+    c(level = input$S0, slope = G0)
+  } else {
+    regression_start(d)
+  }
+}
+
+# When new data arrives, put the regression values into the manual boxes
+# as a starting suggestion.
+suggest_initial_values <- function(session, d) {
+  st <- regression_start(d)
+  updateNumericInput(session, "S0", value = round(st[["level"]], 3))
+  updateNumericInput(session, "G0", value = round(st[["slope"]], 3))
+}
+
+horizon_ui <- function(ns, value = 4) {
+  numericInput(ns("h"), "Number of future periods to forecast",
+               value = value, min = 1, step = 1)
+}
+
+# Reads the horizon safely.
+horizon <- function(input) {
+  h <- input$h
+  if (is.null(h) || is.na(h) || h < 1) 1 else as.integer(h)
+}
+
+
+# ---------------------------------------------------------------------
+# 4) COMMON OUTPUTS
+# ---------------------------------------------------------------------
+# Every module builds a "result" list and passes it to
+# render_forecast_results(). The list has:
+#   method   text, e.g. "Holt (alpha = 0.2, beta = 0.1)"
+#   d        demand, length n
+#   fitted   one-step forecasts F_1..F_n (NA where no forecast exists)
+#   future   forecasts for n+1 .. n+h
+#   periods  periods used for MAD / MSE / MAPE
+#   params   data frame with the parameter values used        (optional)
+#   detail   data frame with n rows of extra columns (S_t, ...)  (optional)
+#   future_lower / future_upper  prediction interval             (optional)
+#   search   data frame of the parameter search                  (optional)
+
+forecast_results_ui <- function(ns) {
+  tagList(
+    h4(textOutput(ns("headline"))),
+    plotOutput(ns("forecast_plot"), height = "350px"),
+    fluidRow(
+      column(6, h4("Error measures"), tableOutput(ns("error_table"))),
+      column(6, h4("Parameters used"), tableOutput(ns("param_table")))
+    ),
+    h4(textOutput(ns("search_title"))),
+    tableOutput(ns("search_table")),
+    h4("Forecasts for future periods"),
+    tableOutput(ns("future_table")),
+    h4("Calculations by period"),
+    tableOutput(ns("period_table"))
+  )
+}
+
+render_forecast_results <- function(output, result) {
+
+  output$headline <- renderText({
+    r <- result()
+    paste0(r$method, "  -  next-period forecast: ", round(r$future[1], 2))
+  })
+
+  output$forecast_plot <- renderPlot({
+    r <- result()
+    n <- length(r$d); h <- length(r$future)
+    yr <- range(c(r$d, r$fitted, r$future, r$future_lower, r$future_upper),
+                na.rm = TRUE)
+    plot(1:n, r$d, type = "o", pch = 19, col = "grey30",
+         xlim = c(1, n + h), ylim = yr, xlab = "Period", ylab = "Demand",
+         main = r$method)
+    lines(1:n, r$fitted, type = "o", pch = 17, lty = 2, col = "#2F6FB0")
+    lines((n + 1):(n + h), r$future, type = "o", pch = 17, cex = 1.4,
+          col = "#B4501E")
+    if (!is.null(r$future_lower)) {
+      lines((n + 1):(n + h), r$future_lower, lty = 3, col = "#B4501E")
+      lines((n + 1):(n + h), r$future_upper, lty = 3, col = "#B4501E")
+    }
+    abline(v = n + 0.5, col = "grey80", lty = 3)
+    legend("topleft", bty = "n",
+           legend = c("Actual demand", "One-step forecast", "Future forecast"),
+           col = c("grey30", "#2F6FB0", "#B4501E"),
+           pch = c(19, 17, 17), lty = c(1, 2, 1))
+  })
+
+  output$error_table <- renderTable({
+    r <- result()
+    err <- forecast_errors(r$d, r$fitted, r$periods)
+    data.frame(Measure = c("MAD", "MSE", "MAPE (%)"),
+               Value = round(unname(err), 3),
+               "Periods evaluated" = paste0(min(r$periods), " - ", max(r$periods)),
+               check.names = FALSE)
+  })
+
+  output$param_table <- renderTable({
+    r <- result()
+    r$params
+  }, digits = 4)
+
+  output$search_title <- renderText({
+    if (is.null(result()$search)) "" else "Parameter search (best 10)"
+  })
+
+  output$search_table <- renderTable({
+    s <- result()$search
+    if (is.null(s)) return(NULL)
+    head(s, 10)
+  }, digits = 3)
+
+  output$future_table <- renderTable({
+    r <- result()
+    n <- length(r$d); h <- length(r$future)
+    out <- data.frame(Period = as.integer((n + 1):(n + h)),
+                      Forecast = round(r$future, 3))
+    if (!is.null(r$future_lower)) {
+      out[["Lower 95%"]] <- round(r$future_lower, 3)
+      out[["Upper 95%"]] <- round(r$future_upper, 3)
+    }
+    out
+  })
+
+  output$period_table <- renderTable({
+    r <- result()
+    n <- length(r$d)
+    out <- data.frame(Period = 1:n,
+                      "Demand D_t" = r$d,
+                      "Forecast F_t" = round(r$fitted, 3),
+                      "Error e_t = F_t - D_t" = round(r$fitted - r$d, 3),
+                      check.names = FALSE)
+    if (!is.null(r$detail)) out <- cbind(out, round(r$detail, 4))
+    out
+  }, na = "")
+}
+
+# A complete page for a forecasting method:
+# data input + the module's own controls on the left, results on the right.
+forecast_page <- function(ns, explanation, ...) {
+  sidebarLayout(
+    sidebarPanel(
+      helpText(explanation),
+      series_input_ui(ns("data")),
+      ...,
+      horizon_ui(ns)
+    ),
+    mainPanel(forecast_results_ui(ns))
+  )
+}
+
+# =====================================================================
+# Topic: Holt's method - double exponential smoothing   (trend series)
+# Nahmias, Chapter 2
+#
+# S_t = alpha D_t + (1 - alpha)(S_{t-1} + G_{t-1})     level
+# G_t = beta (S_t - S_{t-1}) + (1 - beta) G_{t-1}      slope (trend)
+# One-step forecast:   F_t = S_{t-1} + G_{t-1}
+# tau steps ahead:     F_{n+tau} = S_n + tau G_n
+# Initial values S_0, G_0: regression line D_t = a + b t  ->  S_0 = a, G_0 = b
+#                          or typed by the user.
+# =====================================================================
+
+
+# ---------------------------------------------------------------------
+# 1) HELPER FUNCTIONS
+# ---------------------------------------------------------------------
+holt_run <- function(d, alpha, beta, S0, G0) {
+  n <- length(d)
+  S <- G <- F <- numeric(n)
+  S_prev <- S0; G_prev <- G0
+  for (t in 1:n) {
+    F[t] <- S_prev + G_prev
+    S[t] <- alpha * d[t] + (1 - alpha) * (S_prev + G_prev)
+    G[t] <- beta * (S[t] - S_prev) + (1 - beta) * G_prev
+    S_prev <- S[t]; G_prev <- G[t]
+  }
+  list(S = S, G = G, F = F)
+}
+
+
+# ---------------------------------------------------------------------
+# 2) SCREEN (UI)
+# ---------------------------------------------------------------------
+holt_ui <- function(id) {
+  ns <- NS(id)
+  forecast_page(ns,
+    "S_t = alpha D_t + (1-alpha)(S_(t-1) + G_(t-1));  G_t = beta (S_t - S_(t-1)) + (1-beta) G_(t-1);  F = S + tau G.",
+    parameter_mode_ui(ns,
+      manual = tagList(
+        numericInput(ns("alpha"), "alpha (level)", value = 0.2,
+                     min = 0.01, max = 1, step = 0.05),
+        numericInput(ns("beta"), "beta (trend)", value = 0.1,
+                     min = 0.01, max = 1, step = 0.05)
+      )
+    ),
+    initial_values_ui(ns, slope = TRUE)
+  )
+}
+
+
+# ---------------------------------------------------------------------
+# 3) CALCULATIONS (SERVER)
+# ---------------------------------------------------------------------
+holt_server <- function(id) {
+  moduleServer(id, function(input, output, session) {
+    demand <- series_input_server("data")
+    observeEvent(demand(), suggest_initial_values(session, demand()))
+
+    result <- reactive({
+      d <- demand(); n <- length(d)
+      st <- initial_values(input, d)
+      S0 <- st[["level"]]; G0 <- st[["slope"]]
+      search <- NULL
+      if (input$mode == "manual") {
+        req(input$alpha, input$beta)
+        alpha <- input$alpha; beta <- input$beta
+        validate(need(alpha > 0 && alpha <= 1 && beta > 0 && beta <= 1,
+                      "alpha and beta must be in (0, 1]."))
+      } else {
+        search <- search_smoothing_constants(
+          c("alpha", "beta"),
+          function(p) forecast_errors(d, holt_run(d, p[["alpha"]], p[["beta"]], S0, G0)$F, 1:n),
+          input$criterion)
+        alpha <- search$alpha[1]; beta <- search$beta[1]
+      }
+      run <- holt_run(d, alpha, beta, S0, G0)
+      h <- horizon(input)
+      list(method  = paste0("Holt's method (alpha = ", alpha, ", beta = ", beta, ")"),
+           d = d, fitted = run$F,
+           future  = run$S[n] + (1:h) * run$G[n],
+           periods = 1:n,
+           params  = data.frame(
+             Parameter = c("alpha", "beta", "S0 (initial level)", "G0 (initial slope)"),
+             Value = c(alpha, beta, S0, G0)),
+           detail  = data.frame("S_t" = run$S, "G_t" = run$G, check.names = FALSE),
+           search  = search)
+    })
+
+    render_forecast_results(output, result)
+  })
+}
+
+learning_curve_ui <- function(id) {
+  ns <- NS(id)
+  tagList(
+    sliderInput(ns("L"), "Learning rate", 0.6, 0.99, 0.8),
+    plotOutput(ns("plot"))
+  )
+}
+
+learning_curve_server <- function(id) {
+  moduleServer(id, function(input, output, session) {
+    output$plot <- renderPlot({
+      b <- -log(input$L) / log(2)
+      u <- 1:50
+      plot(u, 100 * u^(-b), type = "l", xlab = "Unit", ylab = "Time")
+    })
+  })
+}
+# =====================================================================
+# Topic: Constant-workforce (level) plan                (heuristic plan)
+# Nahmias, Chapter 3
+#
+# One workforce level for all periods, the smallest one with no shortage:
+#   W = max over t of  (cumulative net demand up to t) /
+#                      (cumulative units per worker up to t)
+#     = max_t  (D'_1 + ... + D'_t) / (K n_1 + ... + K n_t)
+# Workers change only once, in period 1 (from W_0 to W).
+# Whole workers: W is rounded up.
+# =====================================================================
+
+
+# ---------------------------------------------------------------------
+# 1) HELPER FUNCTIONS
+# ---------------------------------------------------------------------
+level_plan_ratios <- function(ap) cumsum(ap$Dnet) / cumsum(ap$K * ap$days)
+level_plan_workers <- function(ap) max(0, level_plan_ratios(ap))
+
+
+# ---------------------------------------------------------------------
+# 2) SCREEN (UI)
+# ---------------------------------------------------------------------
+level_plan_ui <- function(id) {
+  ns <- NS(id)
+  ap_page(ns, "W = max over t of (cumulative net demand) / (cumulative units per worker).",
+          extra_main = tagList(h4("Workers needed to cover cumulative net demand"),
+                               tableOutput(ns("ratio_table"))))
+}
+
+
+# ---------------------------------------------------------------------
+# 3) CALCULATIONS (SERVER)
+# ---------------------------------------------------------------------
+level_plan_server <- function(id, ap) {
+  moduleServer(id, function(input, output, session) {
+    result <- reactive({
+      a <- ap_require(ap)
+      W <- level_plan_workers(a)
+      r <- ap_with_rounding(ap_build_plan(a, W),
+                            function() ap_build_plan(a, ceiling(W - 1e-9)))
+      r$title <- paste0("Constant-workforce (level) plan, W = ", round(W, 3))
+      r
+    })
+
+    output$ratio_table <- renderTable({
+      a <- ap_require(ap)
+      ratio <- level_plan_ratios(a)
+      data.frame(Period = a$periods,
+                 "Cum. net demand" = cumsum(a$Dnet),
+                 "Cum. units per worker" = round(cumsum(a$K * a$days), 3),
+                 "Ratio" = round(ratio, 3),
+                 "Largest" = ifelse(seq_along(ratio) == which.max(ratio), "<- W", ""),
+                 check.names = FALSE)
+    })
+
+    render_ap_results(output, ap, result)
+  })
+}
+
+# =====================================================================
+# Topic: Aggregate planning with linear programming
+# Nahmias, Chapter 3
+#
+# Decision variables for every period t:
+#   W_t workers, H_t hired, F_t fired, I_t inventory,
+#   O_t overtime units, U_t idle units, S_t subcontracted units
+#
+# Minimize  sum_t [ c_H H_t + c_F F_t + c_I I_t + c_R (K n_t W_t - U_t)
+#                   + c_O O_t + c_U U_t + c_S S_t ]
+# subject to
+#   W_t = W_{t-1} + H_t - F_t                          (workforce balance)
+#   I_t = I_{t-1} + K n_t W_t + O_t - U_t + S_t - D'_t   (inventory balance)
+#   U_t <= K n_t W_t                                    (idle <= capacity)
+#   O_t <= (overtime limit %) x K n_t W_t               (if a limit is given)
+#   S_t <= subcontracting limit                          (if a limit is given)
+#   O_t = 0 / U_t = 0 / S_t = 0  when that option is switched off
+#   all variables >= 0, I_0 = 0 (I_0 is already inside D'_1)
+# Solved with the lpSolve package.
+# Whole workers: W_t is rounded up, then the LP is solved again with the
+# workforce fixed at those values (the other variables are re-optimized).
+# =====================================================================
+
+
+# ---------------------------------------------------------------------
+# 1) HELPER FUNCTIONS
+# ---------------------------------------------------------------------
+lp_plan_solve <- function(ap, allow_ot, ot_limit, allow_idle, allow_sub, sub_limit,
+                          fixed_W = NULL) {
+  Tn <- length(ap$Dnet)
+  k <- ap$costs
+  pw <- ap$K * ap$days                    # units per worker in each period
+  blocks <- c("W", "H", "F", "I", "O", "U", "S")
+  col <- function(v, t) (match(v, blocks) - 1) * Tn + t
+  nv <- length(blocks) * Tn
+
+  obj <- numeric(nv)
+  for (t in 1:Tn) {
+    obj[col("H", t)] <- k$hire
+    obj[col("F", t)] <- k$fire
+    obj[col("I", t)] <- k$hold
+    obj[col("W", t)] <- k$reg * pw[t]
+    obj[col("O", t)] <- k$ot
+    obj[col("U", t)] <- k$idle - k$reg
+    obj[col("S", t)] <- k$sub
+  }
+
+  A <- list(); dir <- character(0); rhs <- numeric(0)
+  add <- function(coefs, d, r) {
+    row <- numeric(nv); row[as.integer(names(coefs))] <- coefs
+    A[[length(A) + 1]] <<- row; dir <<- c(dir, d); rhs <<- c(rhs, r)
+  }
+  term <- function(...) {               # term("W", t, 1, "H", t, -1, ...)
+    a <- list(...); out <- c()
+    for (i in seq(1, length(a), by = 3)) {
+      out[as.character(col(a[[i]], a[[i + 1]]))] <- a[[i + 2]]
+    }
+    out
+  }
+
+  for (t in 1:Tn) {
+    # workforce balance:  W_t - W_{t-1} - H_t + F_t = 0   (W_0 goes to the right side)
+    co <- term("W", t, 1, "H", t, -1, "F", t, 1)
+    if (t > 1) co <- c(co, term("W", t - 1, -1))
+    add(co, "=", if (t == 1) ap$W0 else 0)
+    # inventory balance:  I_t - I_{t-1} - K n_t W_t - O_t + U_t - S_t = -D'_t
+    co <- term("I", t, 1, "W", t, -pw[t], "O", t, -1, "U", t, 1, "S", t, -1)
+    if (t > 1) co <- c(co, term("I", t - 1, -1))
+    add(co, "=", -ap$Dnet[t])
+    # idle units cannot exceed regular capacity
+    add(term("U", t, 1, "W", t, -pw[t]), "<=", 0)
+    # options
+    if (!allow_ot) add(term("O", t, 1), "=", 0)
+    else if (!is.na(ot_limit) && ot_limit > 0) add(term("O", t, 1, "W", t, -ot_limit / 100 * pw[t]), "<=", 0)
+    if (!allow_idle) add(term("U", t, 1), "=", 0)
+    if (!allow_sub) add(term("S", t, 1), "=", 0)
+    else if (!is.na(sub_limit) && sub_limit > 0) add(term("S", t, 1), "<=", sub_limit)
+    if (!is.null(fixed_W)) add(term("W", t, 1), "=", fixed_W[t])
+  }
+
+  sol <- lpSolve::lp("min", obj, do.call(rbind, A), dir, rhs)
+  if (sol$status != 0) return(NULL)
+  x <- sol$solution
+  get <- function(v) x[col(v, 1:Tn)]
+  list(W = get("W"), O = get("O"), U = get("U"), S = get("S"),
+       objective = sol$objval)
+}
+
+
+# ---------------------------------------------------------------------
+# 2) SCREEN (UI)
+# ---------------------------------------------------------------------
+lp_plan_ui <- function(id) {
+  ns <- NS(id)
+  ap_page(ns,
+    "Finds the cheapest plan with linear programming. Choose which options the model may use.",
+    checkboxInput(ns("allow_ot"), "Allow overtime", value = FALSE),
+    conditionalPanel("input.allow_ot", ns = ns,
+      numericInput(ns("ot_limit"), "Overtime limit (% of regular capacity, 0 = no limit)",
+                   value = 0, min = 0)),
+    checkboxInput(ns("allow_idle"), "Allow idle time", value = TRUE),
+    checkboxInput(ns("allow_sub"), "Allow subcontracting", value = FALSE),
+    conditionalPanel("input.allow_sub", ns = ns,
+      numericInput(ns("sub_limit"), "Subcontracting limit per period (units, 0 = no limit)",
+                   value = 0, min = 0)),
+    helpText("If an option has no cost entered (cost 0), the LP may use it for free.")
+  )
+}
+
+
+# ---------------------------------------------------------------------
+# 3) CALCULATIONS (SERVER)
+# ---------------------------------------------------------------------
+lp_plan_server <- function(id, ap) {
+  moduleServer(id, function(input, output, session) {
+    num <- function(x) if (is.null(x) || is.na(x)) 0 else x
+
+    result <- reactive({
+      a <- ap_require(ap)
+      solve <- function(fixed = NULL) {
+        lp_plan_solve(a, isTRUE(input$allow_ot), num(input$ot_limit),
+                      isTRUE(input$allow_idle), isTRUE(input$allow_sub),
+                      num(input$sub_limit), fixed)
+      }
+      s <- solve()
+      validate(need(!is.null(s), "The LP has no feasible solution with these options."))
+      original <- ap_build_plan(a, s$W, s$O, s$U, s$S)
+      r <- ap_with_rounding(original, function() {
+        s2 <- solve(ceiling(s$W - 1e-6))
+        validate(need(!is.null(s2), "No feasible plan with the rounded workforce."))
+        ap_build_plan(a, ceiling(s$W - 1e-6), s2$O, s2$U, s2$S)
+      })
+      r$title <- "Linear programming plan"
+      k <- a$costs
+      free <- c("overtime" = isTRUE(input$allow_ot) && k$ot == 0,
+                "subcontracting" = isTRUE(input$allow_sub) && k$sub == 0)
+      if (any(free)) {
+        r$note <- paste0("Warning: the cost of ", paste(names(free)[free], collapse = " and "),
+                         " is 0 in 'Data and Costs', so the LP can use it for free. ", r$note)
+      }
+      r
+    })
+    render_ap_results(output, ap, result)
+  })
+}
+
+# =====================================================================
+# Topic: Mixed plan                                     (heuristic plan)
+# Nahmias, Chapter 3
+#
+# The user chooses the periods in which the workforce may change.
+# Between two change points the workforce is constant (a small level plan):
+# for a block of periods a ... b
+#   W = max over t in a..b of
+#       (D'_a + ... + D'_t - I_{a-1}) / (K n_a + ... + K n_t)
+# where I_{a-1} is the inventory left from the previous block.
+# Period 1 is always a change point (the plan starts from W_0).
+# Whole workers: each block's W is rounded up and the next blocks are
+# recomputed with the inventory that results.
+# =====================================================================
+
+
+# ---------------------------------------------------------------------
+# 1) HELPER FUNCTIONS
+# ---------------------------------------------------------------------
+mixed_plan_workers <- function(ap, change_periods, round_up = FALSE) {
+  Tn <- length(ap$Dnet)
+  starts <- sort(unique(c(1, change_periods[change_periods >= 1 & change_periods <= Tn])))
+  ends <- c(starts[-1] - 1, Tn)
+  per_worker <- ap$K * ap$days
+  W <- numeric(Tn)
+  inv <- 0
+  for (b in seq_along(starts)) {
+    idx <- starts[b]:ends[b]
+    need <- (cumsum(ap$Dnet[idx]) - inv) / cumsum(per_worker[idx])
+    w <- max(0, need)
+    if (round_up) w <- ceiling(w - 1e-9)
+    W[idx] <- w
+    inv <- inv + sum(per_worker[idx] * w - ap$Dnet[idx])
+  }
+  W
+}
+
+
+# ---------------------------------------------------------------------
+# 2) SCREEN (UI)
+# ---------------------------------------------------------------------
+mixed_plan_ui <- function(id) {
+  ns <- NS(id)
+  ap_page(ns,
+    "The workforce stays constant between the periods you choose and changes only in those periods.",
+    checkboxGroupInput(ns("changes"),
+                       "Periods in which the workforce changes (period 1 always changes)",
+                       choices = NULL)
+  )
+}
+
+
+# ---------------------------------------------------------------------
+# 3) CALCULATIONS (SERVER)
+# ---------------------------------------------------------------------
+mixed_plan_server <- function(id, ap) {
+  moduleServer(id, function(input, output, session) {
+
+    # List the periods as check boxes when the data changes
+    observeEvent(tryCatch(ap()$periods, error = function(e) NULL), {
+      p <- ap()$periods
+      Tn <- length(p)
+      updateCheckboxGroupInput(session, "changes",
+                               choices = setNames(as.character(1:Tn), p),
+                               selected = as.character(unique(c(1, ceiling(Tn / 2) + 1))))
+    })
+
+    result <- reactive({
+      a <- ap_require(ap)
+      ch <- as.integer(input$changes)
+      W <- mixed_plan_workers(a, ch)
+      r <- ap_with_rounding(ap_build_plan(a, W),
+                            function() ap_build_plan(a, mixed_plan_workers(a, ch, round_up = TRUE)))
+      starts <- sort(unique(c(1, ch)))
+      r$title <- paste0("Mixed plan, workforce changes in: ",
+                        paste(a$periods[starts], collapse = ", "))
+      r
+    })
+    render_ap_results(output, ap, result)
+  })
+}
+
+# =====================================================================
+# Topic: Forecasting with Moving Averages - MA(N)       (stationary series)
+# Nahmias, Chapter 2
+#
+# MA(N) forecast:  F_t = (D_{t-1} + D_{t-2} + ... + D_{t-N}) / N
+# The forecast for every future period is the last MA value.
+# Shared tools (file reading, MAD/MSE/MAPE, outputs): forecast_common.R
+# =====================================================================
+
+
+# ---------------------------------------------------------------------
+# 1) HELPER FUNCTIONS (the calculations; independent of the screen)
+# ---------------------------------------------------------------------
+
+# MA(N) forecasts for the demand vector d.
+# The output has length n + 1: the last element is the next-period forecast.
+# No forecast can be made for the first N periods (NA).
+moving_average_forecast <- function(d, N) {
+  n <- length(d)
+  F <- rep(NA_real_, n + 1)
+  for (t in (N + 1):(n + 1)) {
+    F[t] <- mean(d[(t - N):(t - 1)])
+  }
+  F
+}
+
+# Tries every N = 1, 2, ..., Nmax.
+# For a fair comparison, all N are evaluated over the SAME periods (Nmax+1 ... n).
+moving_average_search <- function(d, Nmax, criterion) {
+  search_parameters(
+    data.frame(N = 1:Nmax),
+    function(p) forecast_errors(d, moving_average_forecast(d, p[["N"]]),
+                                (Nmax + 1):length(d)),
+    criterion
+  )
+}
+
+
+# ---------------------------------------------------------------------
+# 2) SCREEN (UI)
+# ---------------------------------------------------------------------
+moving_average_ui <- function(id) {
+  ns <- NS(id)
+  forecast_page(ns,
+    "F_t = average of the last N demands. For stationary series.",
+    parameter_mode_ui(ns,
+      manual = numericInput(ns("N"), "N (number of past periods)",
+                            value = 3, min = 1, step = 1),
+      auto   = numericInput(ns("Nmax"), "Largest N to try",
+                            value = 12, min = 2, step = 1)
+    )
+  )
+}
+
+
+# ---------------------------------------------------------------------
+# 3) CALCULATIONS (SERVER)
+# ---------------------------------------------------------------------
+moving_average_server <- function(id) {
+  moduleServer(id, function(input, output, session) {
+    demand <- series_input_server("data")
+
+    result <- reactive({
+      d <- demand(); n <- length(d)
+      search <- NULL
+      if (input$mode == "manual") {
+        req(input$N)
+        N <- as.integer(input$N)
+        validate(need(N >= 1 && N < n, "N must be between 1 and n - 1."))
+        start <- N + 1
+      } else {
+        req(input$Nmax)
+        Nmax <- as.integer(input$Nmax)
+        validate(need(Nmax >= 1 && Nmax < n,
+                      "The largest N must be smaller than the number of observations."))
+        search <- moving_average_search(d, Nmax, input$criterion)
+        N <- search$N[1]
+        start <- Nmax + 1
+      }
+      F <- moving_average_forecast(d, N)
+      list(method  = paste0("Moving average MA(", N, ")"),
+           d = d, fitted = F[1:n],
+           future  = rep(F[n + 1], horizon(input)),
+           periods = start:n,
+           params  = data.frame(Parameter = "N", Value = N),
+           search  = search)
+    })
+
+    render_forecast_results(output, result)
+  })
+}
+
+# =====================================================================
+# Topic: Seasonal decomposition with moving averages    (seasonal series)
+# Nahmias, Chapter 2
+#
+# N = length of one season
+# 1. Centered moving average CMA_t of length N
+#      N odd : average of D_{t-(N-1)/2} ... D_{t+(N-1)/2}
+#      N even: average of two neighbouring MA(N)s
+#              = (D_{t-N/2}/2 + D_{t-N/2+1} + ... + D_{t+N/2-1} + D_{t+N/2}/2) / N
+# 2. Ratios           D_t / CMA_t
+# 3. Seasonal factor  c_j = average of the ratios of position j,
+#                     scaled so that the factors add up to N
+# 4. Deseasonalize    D_t / c_j
+# 5. Fit a regression line a + b t to the deseasonalized series
+# 6. Forecast         F_t = (a + b t) * c_j
+# =====================================================================
+
+
+# ---------------------------------------------------------------------
+# 1) HELPER FUNCTIONS
+# ---------------------------------------------------------------------
+centered_moving_average <- function(d, N) {
+  n <- length(d)
+  cma <- rep(NA_real_, n)
+  if (N %% 2 == 1) {
+    k <- (N - 1) / 2
+    for (t in (k + 1):(n - k)) cma[t] <- mean(d[(t - k):(t + k)])
+  } else {
+    k <- N / 2
+    w <- c(0.5, rep(1, N - 1), 0.5) / N
+    if (n > 2 * k) for (t in (k + 1):(n - k)) cma[t] <- sum(w * d[(t - k):(t + k)])
+  }
+  cma
+}
+
+seasonal_decomposition_run <- function(d, N) {
+  n <- length(d)
+  t <- 1:n
+  pos <- season_position(t, N)
+  cma <- centered_moving_average(d, N)
+  ratio <- d / cma
+  raw <- tapply(ratio, pos, mean, na.rm = TRUE)
+  factors <- as.numeric(raw) * N / sum(raw)
+  deseason <- d / factors[pos]
+  fit <- stats::lm(deseason ~ t)
+  a <- unname(stats::coef(fit)[1]); b <- unname(stats::coef(fit)[2])
+  list(pos = pos, cma = cma, ratio = ratio, factors = factors,
+       deseason = deseason, a = a, b = b,
+       trend = a + b * t, fitted = (a + b * t) * factors[pos])
+}
+
+
+# ---------------------------------------------------------------------
+# 2) SCREEN (UI)
+# ---------------------------------------------------------------------
+seasonal_decomposition_ui <- function(id) {
+  ns <- NS(id)
+  forecast_page(ns,
+    "Centered MA -> seasonal factors -> deseasonalize -> trend line -> F_t = (a + b t) x c_j.",
+    numericInput(ns("N"), "Season length N (e.g. 4 = quarters, 12 = months)",
+                 value = 4, min = 2, step = 1),
+    helpText("This method has no smoothing constant to search for;",
+             "only the season length N is needed.")
+  )
+}
+
+
+# ---------------------------------------------------------------------
+# 3) CALCULATIONS (SERVER)
+# ---------------------------------------------------------------------
+seasonal_decomposition_server <- function(id) {
+  moduleServer(id, function(input, output, session) {
+    demand <- series_input_server("data")
+
+    result <- reactive({
+      d <- demand(); n <- length(d)
+      req(input$N)
+      N <- as.integer(input$N)
+      validate(need(N >= 2 && n >= 2 * N,
+                    "The data must contain at least two complete seasons."))
+      r <- seasonal_decomposition_run(d, N)
+      validate(need(all(!is.na(r$factors)),
+                    "Not enough data to compute every seasonal factor."))
+      h <- horizon(input)
+      tf <- (n + 1):(n + h)
+      list(method  = paste0("Seasonal decomposition, N = ", N,
+                            ", trend line ", round(r$a, 3), " + ", round(r$b, 3), " t"),
+           d = d, fitted = r$fitted,
+           future  = (r$a + r$b * tf) * r$factors[season_position(tf, N)],
+           periods = 1:n,
+           params  = data.frame(
+             Parameter = c("Trend intercept a", "Trend slope b", paste0("c", 1:N)),
+             Value = c(r$a, r$b, r$factors)),
+           detail  = data.frame("Season position" = r$pos,
+                                "Centered MA" = r$cma,
+                                "D_t / CMA" = r$ratio,
+                                "Factor c_j" = r$factors[r$pos],
+                                "Deseasonalized" = r$deseason,
+                                "Trend a + b t" = r$trend,
+                                check.names = FALSE))
+    })
+
+    render_forecast_results(output, result)
+  })
+}
+
+# =====================================================================
+# Topic: Seasonal factors - "quick and dirty" method
+#        (stationary series with a seasonal pattern)
+# Nahmias, Chapter 2
+#
+# N = length of one season (e.g. 4 quarters, 12 months)
+# 1. Overall mean:      Dbar = mean of all demands in the complete seasons
+# 2. Ratios:            D_t / Dbar
+# 3. Seasonal factor:   c_j = average of the ratios of position j
+#                       (the factors add up to N)
+# 4. Forecast:          F_t = Dbar * c_j   (j = position of period t)
+# =====================================================================
+
+
+# ---------------------------------------------------------------------
+# 1) HELPER FUNCTIONS
+# ---------------------------------------------------------------------
+seasonal_factors_run <- function(d, N) {
+  n_cycles <- floor(length(d) / N)
+  used <- d[1:(n_cycles * N)]                 # only complete seasons
+  mean_d <- mean(used)
+  ratio <- used / mean_d
+  pos <- season_position(seq_along(used), N)
+  factors <- tapply(ratio, pos, mean)
+  factors <- as.numeric(factors) * N / sum(factors)   # sum = N
+  list(mean = mean_d, factors = factors, ratio = ratio, n_used = length(used))
+}
+
+
+# ---------------------------------------------------------------------
+# 2) SCREEN (UI)
+# ---------------------------------------------------------------------
+seasonal_factors_ui <- function(id) {
+  ns <- NS(id)
+  forecast_page(ns,
+    "Seasonal factor c_j = average of D_t / (overall mean) for position j. F_t = mean x c_j.",
+    numericInput(ns("N"), "Season length N (e.g. 4 = quarters, 12 = months)",
+                 value = 4, min = 2, step = 1),
+    helpText("This method has no smoothing constant to search for;",
+             "only the season length N is needed.")
+  )
+}
+
+
+# ---------------------------------------------------------------------
+# 3) CALCULATIONS (SERVER)
+# ---------------------------------------------------------------------
+seasonal_factors_server <- function(id) {
+  moduleServer(id, function(input, output, session) {
+    demand <- series_input_server("data")
+
+    result <- reactive({
+      d <- demand(); n <- length(d)
+      req(input$N)
+      N <- as.integer(input$N)
+      validate(need(N >= 2 && n >= N,
+                    "The data must contain at least one complete season."))
+      r <- seasonal_factors_run(d, N)
+      pos <- season_position(1:n, N)
+      h <- horizon(input)
+      fpos <- season_position((n + 1):(n + h), N)
+      ratio <- c(r$ratio, rep(NA, n - r$n_used))
+      list(method  = paste0("Seasonal factors (quick and dirty), N = ", N),
+           d = d, fitted = r$mean * r$factors[pos],
+           future  = r$mean * r$factors[fpos],
+           periods = 1:n,
+           params  = data.frame(
+             Parameter = c("Overall mean", paste0("c", 1:N)),
+             Value = c(r$mean, r$factors)),
+           detail  = data.frame("Season position" = pos,
+                                "D_t / mean" = ratio,
+                                "Factor c_j" = r$factors[pos],
+                                check.names = FALSE))
+    })
+
+    render_forecast_results(output, result)
+  })
+}
+
+# =====================================================================
+# Topic: Aggregate planning with the transportation method
+# Nahmias, Chapter 3
+#
+# Sources (rows):  starting inventory, and for every period t
+#                  regular time RT_t, overtime OT_t, subcontracting SC_t
+# Destinations:    the demand of every period (the last period also needs
+#                  the required ending inventory) + "Unused capacity"
+# Capacities:      RT_t = K n_t W     (W = workforce, constant)
+#                  OT_t = overtime % x RT_t
+#                  SC_t = subcontracting capacity per period
+# Cell cost:       cost of the source + c_I x (periods held)
+#                  = c_R / c_O / c_S + c_I (j - t);  j < t is not allowed
+#                  (no backorders). Unused RT capacity costs c_U per unit.
+# Solutions:
+#   North-west corner: start at the top-left cell, give as much as
+#     possible, then move right (demand met) or down (capacity used up).
+#   Cheapest cell first (least-cost method): repeatedly give as much as
+#     possible to the cheapest allowed cell. The result is checked with an
+#     exact transportation LP (lpSolve::lp.transport).
+# =====================================================================
+
+
+# ---------------------------------------------------------------------
+# 1) HELPER FUNCTIONS
+# ---------------------------------------------------------------------
+
+# Builds the transportation table: sources, demands and cell costs.
+transportation_setup <- function(ap, W, ot_pct, sub_cap) {
+  Tn <- length(ap$D); k <- ap$costs
+  demand <- ap$D; demand[Tn] <- demand[Tn] + ap$IT
+  src <- data.frame(label = character(0), type = character(0), period = integer(0),
+                    capacity = numeric(0), cost = numeric(0), unused_cost = numeric(0))
+  add <- function(label, type, t, cap, cost, unused) {
+    src[nrow(src) + 1, ] <<- list(label, type, t, cap, cost, unused)
+  }
+  if (ap$I0 > 0) add("Starting inventory", "INV", 1L, ap$I0, 0, 0)
+  for (t in 1:Tn) {
+    rt <- ap$K * ap$days[t] * W
+    add(paste("RT", ap$periods[t]), "RT", t, rt, k$reg, k$idle)
+    if (ot_pct > 0) add(paste("OT", ap$periods[t]), "OT", t, ot_pct / 100 * rt, k$ot, 0)
+    if (sub_cap > 0) add(paste("SC", ap$periods[t]), "SC", t, sub_cap, k$sub, 0)
+  }
+  cost <- matrix(NA_real_, nrow(src), Tn)
+  for (i in seq_len(nrow(src))) {
+    j <- src$period[i]:Tn
+    cost[i, j] <- src$cost[i] + k$hold * (j - src$period[i])
+  }
+  list(src = src, demand = demand, cost = cost,
+       unused = max(0, sum(src$capacity) - sum(demand)))
+}
+
+# Every period's demand must be covered by sources of that period or earlier.
+transportation_feasible <- function(tp) {
+  Tn <- length(tp$demand)
+  cap_by_t <- vapply(1:Tn, function(t) sum(tp$src$capacity[tp$src$period == t]), numeric(1))
+  all(cumsum(cap_by_t) >= cumsum(tp$demand) - 1e-6)
+}
+
+# North-west corner rule (the last column is "Unused capacity").
+transportation_northwest <- function(tp) {
+  supply <- tp$src$capacity
+  dem <- c(tp$demand, tp$unused)
+  X <- matrix(0, length(supply), length(dem))
+  i <- 1; j <- 1
+  while (i <= length(supply) && j <= length(dem)) {
+    q <- min(supply[i], dem[j])
+    X[i, j] <- q
+    supply[i] <- supply[i] - q; dem[j] <- dem[j] - q
+    if (supply[i] <= 1e-9) i <- i + 1 else j <- j + 1
+  }
+  X
+}
+
+# Cheapest cell first; leftover capacity goes to "Unused capacity".
+transportation_least_cost <- function(tp) {
+  supply <- tp$src$capacity
+  dem <- tp$demand
+  Tn <- length(dem)
+  X <- matrix(0, length(supply), Tn + 1)
+  cells <- which(!is.na(tp$cost), arr.ind = TRUE)
+  cells <- cells[order(tp$cost[cells], cells[, "col"], cells[, "row"]), , drop = FALSE]
+  for (k in seq_len(nrow(cells))) {
+    i <- cells[k, "row"]; j <- cells[k, "col"]
+    q <- min(supply[i], dem[j])
+    if (q > 0) {
+      X[i, j] <- X[i, j] + q
+      supply[i] <- supply[i] - q; dem[j] <- dem[j] - q
+    }
+  }
+  X[, Tn + 1] <- supply
+  list(X = X, unmet = sum(dem))
+}
+
+# Exact optimum of the same transportation problem (for checking).
+# One LP variable per allowed cell (cells with backorders are left out).
+transportation_optimal <- function(tp) {
+  C <- cbind(tp$cost, tp$src$unused_cost)
+  cells <- which(!is.na(C), arr.ind = TRUE)
+  nv <- nrow(cells)
+  m <- nrow(C); n <- ncol(C)
+  A <- matrix(0, m + n, nv)
+  A[cbind(cells[, "row"], 1:nv)] <- 1            # each source ships its capacity
+  A[cbind(m + cells[, "col"], 1:nv)] <- 1        # each destination receives its demand
+  sol <- lpSolve::lp("min", C[cells], A, rep("=", m + n),
+                     c(tp$src$capacity, tp$demand, tp$unused))
+  if (sol$status != 0) return(NULL)
+  X <- matrix(0, m, n)
+  X[cells] <- sol$solution
+  X
+}
+
+# Total cost of an allocation (cells used x their cost).
+transportation_cost <- function(tp, X) {
+  C <- cbind(tp$cost, tp$src$unused_cost)
+  C[is.na(C)] <- 1e9
+  sum(X * C)
+}
+
+# Turns an allocation into the usual plan table.
+transportation_plan_table <- function(ap, tp, X, W) {
+  Tn <- length(ap$D)
+  used <- function(type) vapply(1:Tn, function(t) {
+    rows <- which(tp$src$type == type & tp$src$period == t)
+    if (length(rows) == 0) 0 else sum(X[rows, 1:Tn])
+  }, numeric(1))
+  rt_cap <- ap$K * ap$days * W
+  ap_build_plan(ap, W, O = used("OT"), U = rt_cap - used("RT"), S = used("SC"))
+}
+
+# Allocation table for the screen.
+transportation_show <- function(tp, X, ap) {
+  Tn <- length(tp$demand)
+  out <- as.data.frame(matrix("", nrow(X), Tn + 1), stringsAsFactors = FALSE)
+  names(out) <- c(ap$periods, "Unused")
+  for (i in seq_len(nrow(X))) for (j in 1:(Tn + 1)) {
+    if (j <= Tn && is.na(tp$cost[i, j])) out[i, j] <- "x"
+    else if (X[i, j] > 1e-9) out[i, j] <- format(round(X[i, j], 2), big.mark = ",")
+  }
+  cbind(Source = tp$src$label, out,
+        Capacity = round(tp$src$capacity, 2))
+}
+
+
+# ---------------------------------------------------------------------
+# 2) SCREEN (UI)
+# ---------------------------------------------------------------------
+transportation_plan_ui <- function(id) {
+  ns <- NS(id)
+  ap_page(ns,
+    "Regular time, overtime and subcontracting of each period are the sources; the demands of the periods are the destinations.",
+    numericInput(ns("W"), "Workforce W (constant, used for regular-time capacity)",
+                 value = 300, min = 0, step = 1),
+    numericInput(ns("ot_pct"), "Overtime capacity (% of regular-time capacity, 0 = none)",
+                 value = 20, min = 0),
+    numericInput(ns("sub_cap"), "Subcontracting capacity per period (units, 0 = none)",
+                 value = 0, min = 0),
+    extra_main = tagList(
+      h4("Cell costs (x = not allowed: no backorders)"),
+      tableOutput(ns("cost_matrix")),
+      h4(textOutput(ns("nw_title"))),
+      tableOutput(ns("nw_table")),
+      h4(textOutput(ns("lc_title"))),
+      tableOutput(ns("lc_table"))
+    )
+  )
+}
+
+
+# ---------------------------------------------------------------------
+# 3) CALCULATIONS (SERVER)
+# ---------------------------------------------------------------------
+transportation_plan_server <- function(id, ap) {
+  moduleServer(id, function(input, output, session) {
+    num <- function(x) if (is.null(x) || is.na(x)) 0 else x
+
+    # Suggest the starting workforce when the data changes
+    observeEvent(tryCatch(ap()$W0, error = function(e) NULL), {
+      updateNumericInput(session, "W", value = ap()$W0)
+    })
+
+    solved <- reactive({
+      a <- ap_require(ap)
+      W <- ceiling(num(input$W) - 1e-9)
+      tp <- transportation_setup(a, W, num(input$ot_pct), num(input$sub_cap))
+      validate(need(transportation_feasible(tp),
+                    "Not enough capacity: some period's demand cannot be met without backorders. Increase W, overtime or subcontracting."))
+      nw <- transportation_northwest(tp)
+      lc <- transportation_least_cost(tp)
+      opt <- transportation_optimal(tp)
+      best <- lc$X
+      note <- NULL
+      if (lc$unmet > 1e-6 && !is.null(opt)) {
+        best <- opt
+        note <- "The cheapest-cell-first rule left some demand unmet, so the exact LP optimum is shown instead."
+      } else if (!is.null(opt) && transportation_cost(tp, lc$X) > transportation_cost(tp, opt) + 1e-6) {
+        note <- paste0("Note: the exact optimum (", round(transportation_cost(tp, opt), 2),
+                       ") is cheaper than the cheapest-cell-first solution.")
+      } else {
+        note <- "The cheapest-cell-first solution is optimal (checked with an exact LP)."
+      }
+      list(a = a, W = W, tp = tp, nw = nw, best = best, note = note)
+    })
+
+    result <- reactive({
+      s <- solved()
+      list(title = paste0("Transportation method, W = ", s$W),
+           plans = list("North-west corner" = transportation_plan_table(s$a, s$tp, s$nw, s$W),
+                        "Cheapest cell first (optimal)" = transportation_plan_table(s$a, s$tp, s$best, s$W)),
+           note = s$note)
+    })
+
+    output$cost_matrix <- renderTable({
+      s <- solved()
+      C <- s$tp$cost
+      out <- as.data.frame(ifelse(is.na(C), "x", format(round(C, 2))), stringsAsFactors = FALSE)
+      names(out) <- s$a$periods
+      cbind(Source = s$tp$src$label, out, Unused = s$tp$src$unused_cost)
+    })
+    output$nw_title <- renderText({
+      s <- solved()
+      paste0("North-west corner solution (transportation cost ",
+             format(round(transportation_cost(s$tp, s$nw), 2), big.mark = ","), ")")
+    })
+    output$nw_table <- renderTable({ s <- solved(); transportation_show(s$tp, s$nw, s$a) })
+    output$lc_title <- renderText({
+      s <- solved()
+      paste0("Cheapest cell first solution (transportation cost ",
+             format(round(transportation_cost(s$tp, s$best), 2), big.mark = ","), ")")
+    })
+    output$lc_table <- renderTable({ s <- solved(); transportation_show(s$tp, s$best, s$a) })
+
+    render_ap_results(output, ap, result)
+  })
+}
+
+# =====================================================================
+# Topic: Weighted Moving Average - WMA(N)               (stationary series)
+# Nahmias, Chapter 2
+#
+# F_t = w_1 D_{t-1} + w_2 D_{t-2} + ... + w_N D_{t-N}
+#   w_1 is the weight of the most recent period, w_i >= 0, sum(w_i) = 1
+# The forecast for every future period is the last WMA value.
+# Best weights: every combination on a grid (step 0.05, or 0.1 for N = 5)
+# is tried and the one with the smallest MAD / MSE / MAPE is kept.
+# =====================================================================
+
+
+# ---------------------------------------------------------------------
+# 1) HELPER FUNCTIONS
+# ---------------------------------------------------------------------
+
+# Forecasts with weights w (w[1] = most recent). Length n + 1.
+weighted_moving_average_forecast <- function(d, w) {
+  n <- length(d); N <- length(w)
+  F <- rep(NA_real_, n + 1)
+  for (t in (N + 1):(n + 1)) {
+    F[t] <- sum(w * d[(t - 1):(t - N)])
+  }
+  F
+}
+
+# All weight vectors of length N on a grid with the given step that add up to 1.
+weight_grid <- function(N, step) {
+  k <- round(1 / step)
+  build <- function(parts, total) {
+    if (parts == 1) return(matrix(total, 1, 1))
+    do.call(rbind, lapply(0:total, function(first) {
+      cbind(first, build(parts - 1, total - first))
+    }))
+  }
+  g <- build(N, k) * step
+  colnames(g) <- paste0("w", 1:N)
+  as.data.frame(g)
+}
+
+# Reads "0.5, 0.3, 0.2" into a numeric vector.
+parse_weights <- function(text) {
+  parts <- strsplit(gsub(";", ",", text), ",")[[1]]
+  suppressWarnings(as.numeric(trimws(parts)))
+}
+
+
+# ---------------------------------------------------------------------
+# 2) SCREEN (UI)
+# ---------------------------------------------------------------------
+weighted_moving_average_ui <- function(id) {
+  ns <- NS(id)
+  forecast_page(ns,
+    "F_t = w1 D(t-1) + w2 D(t-2) + ... + wN D(t-N). Weights add up to 1.",
+    parameter_mode_ui(ns,
+      manual = textInput(ns("weights"),
+                         "Weights, most recent period first (comma separated)",
+                         value = "0.5, 0.3, 0.2"),
+      auto   = numericInput(ns("N"), "N (number of weights, 2 to 5)",
+                            value = 3, min = 2, max = 5, step = 1)
+    )
+  )
+}
+
+
+# ---------------------------------------------------------------------
+# 3) CALCULATIONS (SERVER)
+# ---------------------------------------------------------------------
+weighted_moving_average_server <- function(id) {
+  moduleServer(id, function(input, output, session) {
+    demand <- series_input_server("data")
+
+    result <- reactive({
+      d <- demand(); n <- length(d)
+      search <- NULL
+      if (input$mode == "manual") {
+        w <- parse_weights(input$weights)
+        validate(need(length(w) >= 1 && all(!is.na(w)),
+                      "Type the weights as numbers separated by commas."),
+                 need(all(w >= 0), "Weights cannot be negative."),
+                 need(abs(sum(w) - 1) < 1e-6,
+                      paste0("The weights must add up to 1 (now ", sum(w), ").")),
+                 need(length(w) < n, "Too many weights for this data."))
+      } else {
+        req(input$N)
+        N <- as.integer(input$N)
+        validate(need(N >= 2 && N <= 5, "N must be between 2 and 5."),
+                 need(N < n, "N must be smaller than the number of observations."))
+        step <- if (N <= 4) 0.05 else 0.1
+        grid <- weight_grid(N, step)
+        search <- search_parameters(
+          grid,
+          function(p) forecast_errors(d, weighted_moving_average_forecast(d, unname(p)),
+                                      (N + 1):n),
+          input$criterion)
+        w <- unlist(search[1, paste0("w", 1:N)])
+      }
+      w <- unname(w); N <- length(w)
+      F <- weighted_moving_average_forecast(d, w)
+      list(method  = paste0("Weighted moving average, weights = (",
+                            paste(round(w, 3), collapse = ", "), ")"),
+           d = d, fitted = F[1:n],
+           future  = rep(F[n + 1], horizon(input)),
+           periods = (N + 1):n,
+           params  = data.frame(Parameter = paste0("w", 1:N, " (period t-", 1:N, ")"),
+                                Value = w),
+           search  = search)
+    })
+
+    render_forecast_results(output, result)
+  })
+}
+
+# =====================================================================
+# Topic: Winters' method - triple exponential smoothing (seasonal series)
+# Nahmias, Chapter 2
+#
+# N = length of one season
+# S_t = alpha (D_t / c_{t-N}) + (1 - alpha)(S_{t-1} + G_{t-1})   level
+# G_t = beta (S_t - S_{t-1}) + (1 - beta) G_{t-1}                slope
+# c_t = gamma (D_t / S_t) + (1 - gamma) c_{t-N}                  seasonal factor
+# One-step forecast:  F_t = (S_{t-1} + G_{t-1}) c_{t-N}
+# tau steps ahead:    F_{n+tau} = (S_n + tau G_n) c_{n+tau-N}
+#
+# Initial values:
+#   S_0, G_0 : regression line D_t = a + b t  ->  S_0 = a, G_0 = b
+#              (or typed by the user)
+#   c_j      : average of D_t / (S_0 + G_0 t) over the periods of position j,
+#              scaled so that the factors add up to N
+# =====================================================================
+
+
+# ---------------------------------------------------------------------
+# 1) HELPER FUNCTIONS
+# ---------------------------------------------------------------------
+winters_initial_factors <- function(d, N, S0, G0) {
+  t <- seq_along(d)
+  ratio <- d / (S0 + G0 * t)
+  raw <- tapply(ratio, season_position(t, N), mean)
+  as.numeric(raw) * N / sum(raw)
+}
+
+winters_run <- function(d, N, alpha, beta, gamma, S0, G0, c0) {
+  n <- length(d)
+  S <- G <- F <- cc <- numeric(n)
+  factors <- c0                  # the latest factor of every position
+  S_prev <- S0; G_prev <- G0
+  for (t in 1:n) {
+    j <- season_position(t, N)
+    F[t] <- (S_prev + G_prev) * factors[j]
+    S[t] <- alpha * d[t] / factors[j] + (1 - alpha) * (S_prev + G_prev)
+    G[t] <- beta * (S[t] - S_prev) + (1 - beta) * G_prev
+    cc[t] <- gamma * d[t] / S[t] + (1 - gamma) * factors[j]
+    factors[j] <- cc[t]
+    S_prev <- S[t]; G_prev <- G[t]
+  }
+  list(S = S, G = G, c = cc, F = F, last_factors = factors)
+}
+
+
+# ---------------------------------------------------------------------
+# 2) SCREEN (UI)
+# ---------------------------------------------------------------------
+winters_ui <- function(id) {
+  ns <- NS(id)
+  forecast_page(ns,
+    "Level S, slope G and seasonal factors c are smoothed with alpha, beta, gamma. F = (S + tau G) c.",
+    numericInput(ns("N"), "Season length N (e.g. 4 = quarters, 12 = months)",
+                 value = 4, min = 2, step = 1),
+    parameter_mode_ui(ns,
+      manual = tagList(
+        numericInput(ns("alpha"), "alpha (level)", value = 0.2,
+                     min = 0.01, max = 1, step = 0.05),
+        numericInput(ns("beta"), "beta (trend)", value = 0.1,
+                     min = 0.01, max = 1, step = 0.05),
+        numericInput(ns("gamma"), "gamma (seasonal factors)", value = 0.1,
+                     min = 0.01, max = 1, step = 0.05)
+      ),
+      auto = helpText("The search may take a few seconds.")
+    ),
+    initial_values_ui(ns, slope = TRUE)
+  )
+}
+
+
+# ---------------------------------------------------------------------
+# 3) CALCULATIONS (SERVER)
+# ---------------------------------------------------------------------
+winters_server <- function(id) {
+  moduleServer(id, function(input, output, session) {
+    demand <- series_input_server("data")
+    observeEvent(demand(), suggest_initial_values(session, demand()))
+
+    result <- reactive({
+      d <- demand(); n <- length(d)
+      req(input$N)
+      N <- as.integer(input$N)
+      validate(need(N >= 2 && n >= 2 * N,
+                    "The data must contain at least two complete seasons."))
+      st <- initial_values(input, d)
+      S0 <- st[["level"]]; G0 <- st[["slope"]]
+      c0 <- winters_initial_factors(d, N, S0, G0)
+      validate(need(all(is.finite(c0)) && all(c0 > 0),
+                    "The initial line gives zero or negative values; check S0 and G0."))
+      search <- NULL
+      if (input$mode == "manual") {
+        req(input$alpha, input$beta, input$gamma)
+        alpha <- input$alpha; beta <- input$beta; gamma <- input$gamma
+        validate(need(all(c(alpha, beta, gamma) > 0 & c(alpha, beta, gamma) <= 1),
+                      "alpha, beta and gamma must be in (0, 1]."))
+      } else {
+        search <- withProgress(message = "Searching alpha, beta, gamma...", {
+          search_smoothing_constants(
+            c("alpha", "beta", "gamma"),
+            function(p) forecast_errors(
+              d, winters_run(d, N, p[["alpha"]], p[["beta"]], p[["gamma"]], S0, G0, c0)$F, 1:n),
+            input$criterion, coarse = 0.1)
+        })
+        alpha <- search$alpha[1]; beta <- search$beta[1]; gamma <- search$gamma[1]
+      }
+      run <- winters_run(d, N, alpha, beta, gamma, S0, G0, c0)
+      h <- horizon(input)
+      tf <- (n + 1):(n + h)
+      list(method  = paste0("Winters' method (alpha = ", alpha, ", beta = ", beta,
+                            ", gamma = ", gamma, "), N = ", N),
+           d = d, fitted = run$F,
+           future  = (run$S[n] + (tf - n) * run$G[n]) * run$last_factors[season_position(tf, N)],
+           periods = 1:n,
+           params  = data.frame(
+             Parameter = c("alpha", "beta", "gamma", "S0 (initial level)",
+                           "G0 (initial slope)", paste0("initial c", 1:N)),
+             Value = c(alpha, beta, gamma, S0, G0, c0)),
+           detail  = data.frame("Season position" = season_position(1:n, N),
+                                "S_t" = run$S, "G_t" = run$G, "c_t" = run$c,
+                                check.names = FALSE),
+           search  = search)
+    })
+
+    render_forecast_results(output, result)
+  })
+}
