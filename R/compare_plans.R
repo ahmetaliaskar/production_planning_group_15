@@ -77,8 +77,9 @@ compare_plans_server <- function(id, ap, plans) {
     output$kpis <- renderUI({
       a <- tryCatch(ap(), error = function(e) NULL)
       if (is.null(a)) {
-        return(empty_state("No plans yet.",
-                           "Upload the demand data in the 'Data and Costs' tab (or load the example)."))
+        return(empty_state("Drop the demand file here",
+                           "or click to choose it - it is loaded into the 'Data and Costs' tab.",
+                           aggregate = TRUE))
       }
       tab <- tryCatch(table(), error = function(e) NULL)
       if (is.null(tab)) return(NULL)

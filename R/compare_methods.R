@@ -159,8 +159,8 @@ compare_methods_server <- function(id) {
       tab <- tryCatch(table(), error = function(e) e)
       if (inherits(tab, "error")) {
         if (nzchar(conditionMessage(tab))) return(NULL)
-        return(empty_state("Upload a data file (or load the example) to compare the methods.",
-                           "Every method is run with its best parameters."))
+        return(empty_state("Drop an Excel or .csv file here to compare the methods",
+                           "or click to choose a file - or use 'Load example data' on the left."))
       }
       div(class = "kpi-row",
           kpi_tile("Best method", tab$Method[1], tab$Parameters[1]),

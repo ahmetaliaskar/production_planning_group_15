@@ -289,8 +289,8 @@ render_forecast_results <- function(output, result) {
     r <- tryCatch(result(), error = function(e) e)
     if (inherits(r, "error")) {
       if (nzchar(conditionMessage(r))) return(NULL)     # a real message is shown below
-      return(empty_state("Upload a data file on the left to see the forecasts.",
-                                       "Excel (.xlsx, .xls) or .csv - then choose the demand column."))
+      return(empty_state("Drop an Excel or .csv file here to see the forecasts",
+                         "or click to choose a file - or use 'Load example data' on the left."))
     }
     err <- forecast_errors(r$d, r$fitted, r$periods)
     div(class = "kpi-row",

@@ -98,7 +98,11 @@ app_css <- function() {
            font-size: .78rem; color: %4$s; margin-top: 4px; }
     .well.drop-active { outline: 3px dashed %7$s; outline-offset: -6px; background: #eef4fc; }
     .empty-state { background: %5$s; border: 1px dashed #c9c8c2; border-radius: 12px;
-           padding: 28px 24px; color: %4$s; text-align: center; margin-bottom: 14px; }
+           padding: 44px 24px; color: %4$s; text-align: center; margin-bottom: 14px; }
+    .empty-state { cursor: pointer; transition: background .15s, border-color .15s; }
+    .empty-state:hover { border-color: %7$s; background: #f7faff; }
+    .empty-state.drop-active { border: 2px dashed %7$s; background: #eef4fc; }
+    .empty-state .empty-icon { font-size: 1.8rem; color: %7$s; margin-bottom: 6px; }
     .empty-state .empty-title { font-weight: 700; color: %6$s; font-size: 1.05rem; margin-bottom: 4px; }
     .shiny-plot-output:not(:has(img)) { border: none; background: transparent; padding: 0; }
     .col-sm-8:has(.empty-state) > h4 { display: none; }
@@ -131,9 +135,22 @@ app_css <- function() {
 app_dropzone_js <- function() {
   tags$script(HTML("
     (function () {
-      function panelOf(e) {
-        var w = e.target.closest ? e.target.closest('.well') : null;
-        return (w && w.querySelector('input[type=file]')) ? w : null;
+      // Where does a drop at this element go? -> {box: element to highlight, input: file input}
+      function targetOf(el) {
+        if (!el || !el.closest) return null;
+        var card = el.closest('.empty-state[data-drop]');
+        if (card) {
+          var inp = card.classList.contains('empty-ap')
+            ? document.getElementById('aggregate_data-file')
+            : (card.closest('.tab-pane') || document).querySelector('input[type=file]');
+          return inp ? { box: card, input: inp } : null;
+        }
+        var w = el.closest('.well');
+        if (w && w.querySelector('input[type=file]')) return { box: w, input: w.querySelector('input[type=file]') };
+        return null;
+      }
+      function clearActive() {
+        document.querySelectorAll('.drop-active').forEach(function (b) { b.classList.remove('drop-active'); });
       }
       function hasFiles(e) {
         return e.dataTransfer && Array.prototype.indexOf.call(e.dataTransfer.types || [], 'Files') >= 0;
@@ -141,28 +158,31 @@ app_dropzone_js <- function() {
       document.addEventListener('dragover', function (e) {
         if (!hasFiles(e)) return;
         e.preventDefault();
-        document.querySelectorAll('.well.drop-active').forEach(function (w) { w.classList.remove('drop-active'); });
-        var w = panelOf(e);
-        if (w) { w.classList.add('drop-active'); e.dataTransfer.dropEffect = 'copy'; }
+        clearActive();
+        var t = targetOf(e.target);
+        if (t) { t.box.classList.add('drop-active'); e.dataTransfer.dropEffect = 'copy'; }
         else { e.dataTransfer.dropEffect = 'none'; }
       });
       document.addEventListener('dragleave', function (e) {
-        if (e.relatedTarget === null) {
-          document.querySelectorAll('.well.drop-active').forEach(function (w) { w.classList.remove('drop-active'); });
-        }
+        if (e.relatedTarget === null) clearActive();
       });
       document.addEventListener('drop', function (e) {
         if (!hasFiles(e)) return;
         e.preventDefault();
-        document.querySelectorAll('.well.drop-active').forEach(function (w) { w.classList.remove('drop-active'); });
+        clearActive();
         if (e.target.closest && e.target.closest('.input-group')) return;   // Shiny's own drop box
-        var w = panelOf(e);
-        if (!w || !e.dataTransfer.files.length) return;
-        var input = w.querySelector('input[type=file]');
+        var t = targetOf(e.target);
+        if (!t || !e.dataTransfer.files.length) return;
+        var input = t.input;
         var dt = new DataTransfer();
         dt.items.add(e.dataTransfer.files[0]);
         input.files = dt.files;
         input.dispatchEvent(new Event('change', { bubbles: true }));
+      });
+      // Clicking the card opens the file chooser of its upload
+      document.addEventListener('click', function (e) {
+        var t = targetOf(e.target);
+        if (t && t.box.classList.contains('empty-state')) t.input.click();
       });
     })();
   "))
@@ -219,9 +239,13 @@ formula_box <- function(lines) {
   withMathJax(div(class = "formula-box", lapply(lines, function(l) div(HTML(l)))))
 }
 
-# Card shown before any data has been uploaded.
-empty_state <- function(title, text) {
-  div(class = "empty-state", div(class = "empty-title", title), div(text))
+# Card shown before any data has been uploaded. It is also an upload area:
+# a file dropped on it (or chosen after clicking it) goes to the file upload
+# of the same tab, or - with aggregate = TRUE - to the 'Data and Costs' tab.
+empty_state <- function(title, text, aggregate = FALSE) {
+  div(class = paste("empty-state", if (aggregate) "empty-ap"), `data-drop` = "1",
+      div(class = "empty-icon", icon("file-arrow-up")),
+      div(class = "empty-title", title), div(text))
 }
 
 fmt_num <- function(x, digits = 2) {

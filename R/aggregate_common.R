@@ -305,8 +305,9 @@ render_ap_results <- function(output, ap, result) {
   output$kpis <- renderUI({
     a <- tryCatch(ap(), error = function(e) NULL)
     if (is.null(a)) {
-      return(empty_state("No plan yet.",
-                         "Upload the demand data in the 'Data and Costs' tab; every plan uses it."))
+      return(empty_state("Drop the demand file here",
+                         "or click to choose it - it is loaded into the 'Data and Costs' tab.",
+                         aggregate = TRUE))
     }
     r <- tryCatch(result(), error = function(e) NULL)
     if (is.null(r)) return(NULL)                          # the message is shown below

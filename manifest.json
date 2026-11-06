@@ -1260,10 +1260,10 @@
   },
   "files": {
     "R/aggregate_common.R": {
-      "checksum": "5348ed7f7f62f21311779cce8ac80fa0"
+      "checksum": "8a72f53d2cded6295f79b6ea0369a2a4"
     },
     "R/app_theme.R": {
-      "checksum": "5f439ef1453e88890c5565dfaaa3027d"
+      "checksum": "c4bec84e8ddb7b76e46c3b789b5064f9"
     },
     "R/box_jenkins.R": {
       "checksum": "2eae0829dcdd20c0089166dfd8b0fcfb"
@@ -1272,10 +1272,10 @@
       "checksum": "97d726e137e6f3df8fa52f77508622f5"
     },
     "R/compare_methods.R": {
-      "checksum": "d00f7dc26f470d31aaf49c79a8533593"
+      "checksum": "860ab1a08001636156fc959a61fca91e"
     },
     "R/compare_plans.R": {
-      "checksum": "62cdfd5a22248dfe1a8e1c133e539cc7"
+      "checksum": "cbee230de2aa9137c73198aa26dbe64f"
     },
     "R/disaggregation.R": {
       "checksum": "0e6bf77a8eed321e534da4a218abada3"
@@ -1287,7 +1287,7 @@
       "checksum": "775d9cb388f0672780c56a36c174fcea"
     },
     "R/forecast_common.R": {
-      "checksum": "3445955290d71bd9de1505c59757458b"
+      "checksum": "71f52547619ac810583ca722007d7646"
     },
     "R/holt.R": {
       "checksum": "38a1a72fe3f0a60baad7cd03dfd750d0"
