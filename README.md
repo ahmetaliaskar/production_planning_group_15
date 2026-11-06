@@ -16,12 +16,15 @@ Shiny application for the Production Planning course (Nahmias).
 | Menu | Tabs |
 |---|---|
 | Home | Overview and group members |
+| Data Library | Load many files or a folder once; preview the datasets |
 | Learning Curve | Learning curve |
 | Forecasting (Assignment 2) | Moving Average, Weighted Moving Average, Simple Exponential Smoothing, Seasonal Factors (Quick and Dirty), Holt's Method, Seasonal Decomposition, Winters' Method, AR, MA, ARMA, ARIMA, **Compare Methods** |
 | Aggregate Planning (Assignment 3) | Data and Costs, Zero-Inventory (Chase) Plan, Constant-Workforce (Level) Plan, Mixed Plan, Linear Programming, Transportation Method, Disaggregation (Square-Root Rule), **Compare Plans** |
 
 Features for everyday use:
 
+- **Data Library**: load many files or a whole folder at once (every Excel sheet becomes a dataset),
+  then pick any dataset in any tab from its "data library" list
 - **Load example data** button and an **empty Excel template** in every data panel
 - Drag and drop a file onto the left panel or onto the "Drop a file here" card
 - Data check: text cells, empty rows, gaps (filled by interpolation), negative and zero values are reported
@@ -40,6 +43,7 @@ R/
   aggregate_common.R    "Data and Costs" tab and shared tools of aggregate planning
   app_theme.R           theme, colors, chart style and the Home page
   example_data.R        built-in example data
+  data_library.R        the Data Library (many files / a folder, every sheet a dataset)
   help_texts.R          help texts of the (?) signs
   <method>.R            one module per method (<method>_ui / <method>_server)
 ```

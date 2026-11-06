@@ -227,7 +227,8 @@ app_dropzone_js <- function() {
         if (!t || !e.dataTransfer.files.length) return;
         var input = t.input;
         var dt = new DataTransfer();
-        dt.items.add(e.dataTransfer.files[0]);
+        var files = input.multiple ? e.dataTransfer.files : [e.dataTransfer.files[0]];
+        Array.prototype.forEach.call(files, function (f) { dt.items.add(f); });
         input.files = dt.files;
         input.dispatchEvent(new Event('change', { bubbles: true }));
       });
@@ -386,6 +387,7 @@ home_ui <- function() {
         h3("How to use"),
         tags$ul(
           tags$li("Choose a method from the menu on the left (or click a card above)."),
+          tags$li("Have many files? Load them all (or a whole folder) once in 'Data Library', then pick a dataset in any tab."),
           tags$li("Upload an Excel (.xlsx) or .csv file and pick the data column."),
           tags$li("Enter the parameters or let the app search for the best values."),
           tags$li("Aggregate Planning: enter the data once in 'Data and Costs'; every plan uses it.")

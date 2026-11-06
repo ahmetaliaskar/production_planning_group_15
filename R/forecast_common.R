@@ -155,6 +155,7 @@ series_input_ui <- function(id) {
               accept = c(".xlsx", ".xls", ".csv")),
     div(class = "data-actions", example_button(ns),
         downloadLink(ns("template"), "Empty Excel template", class = "template-link")),
+    selectInput(ns("dataset"), "Or choose from the data library", choices = c("(none loaded yet)" = "")),
     selectInput(ns("column"), "Series (demand column)", choices = NULL),
     selectInput(ns("label_col"), "Period names / dates (optional)", choices = c("(none)" = "")),
     uiOutput(ns("check"))
@@ -168,21 +169,48 @@ series_input_server <- function(id, example_column = "Seasonal") {
   moduleServer(id, function(input, output, session) {
     data <- reactiveVal(NULL)
     preferred <- reactiveVal(NULL)
+    lib <- data_library(session)
+    broadcast <- library_broadcast(session)
 
+    # a file uploaded here goes into the library (all its sheets) and is selected
     observeEvent(input$file, {
-      df <- tryCatch(read_data_file(input$file$datapath, input$file$name),
-                     error = function(e) e)
-      if (inherits(df, "error")) {
-        showNotification(conditionMessage(df), type = "error")
+      res <- tryCatch(library_add_files(session, input$file), error = function(e) e)
+      if (inherits(res, "error") || length(res$added) == 0) {
+        showNotification(if (inherits(res, "error")) conditionMessage(res) else "The file could not be read.",
+                         type = "error")
         return()
       }
       preferred(NULL)
-      data(df)
+      data(lib()[[res$added[1]]])
+      updateSelectInput(session, "dataset", choices = c("(choose a dataset)" = "", names(lib())),
+                        selected = res$added[1])
     })
     observeEvent(input$example, {
       preferred(example_column)
       data(example_forecast_data())
+      updateSelectInput(session, "dataset", selected = "")
     })
+
+    # the library list follows the library
+    observeEvent(lib(), {
+      nms <- names(lib())
+      sel <- if (isTruthy(input$dataset) && input$dataset %in% nms) input$dataset else ""
+      updateSelectInput(session, "dataset",
+                        choices = c(if (length(nms)) c("(choose a dataset)" = "") else c("(none loaded yet)" = ""), nms),
+                        selected = sel)
+    })
+    observeEvent(input$dataset, {
+      req(input$dataset, input$dataset %in% names(lib()))
+      preferred(NULL)
+      data(lib()[[input$dataset]])
+    })
+    # "Use in every forecasting tab" from the Data Library
+    observeEvent(broadcast(), {
+      b <- broadcast()
+      req(b$name %in% names(lib()))
+      updateSelectInput(session, "dataset", selected = b$name)
+      data(lib()[[b$name]])
+    }, ignoreInit = TRUE)
 
     observeEvent(data(), {
       cand <- label_column_candidates(data())

@@ -1,10 +1,14 @@
 library(shiny)
 
+# allow larger uploads (a whole folder of Excel files)
+options(shiny.maxRequestSize = 50 * 1024^2)
+
 ui <- navbarPage("Group 15 - Production Planning",
                  theme = app_theme(),
                  header = tagList(app_css(), app_style_css(), app_dropzone_js(), app_help_js(), app_nav_js(),
                                   app_style_js()),
                  tabPanel("Home", home_ui()),
+                 tabPanel("Data Library", data_library_ui("data_library")),
                  tabPanel("Learning Curve", learning_curve_ui("learning_curve")),
                  navbarMenu("Forecasting",
                    "Stationary series",
@@ -47,6 +51,8 @@ ui <- navbarPage("Group 15 - Production Planning",
 )
 
 server <- function(input, output, session) {
+  # the data library is shared by every tab of this browser session
+  data_library_server("data_library")
   learning_curve_server("learning_curve")
   moving_average_server("moving_average")
   weighted_moving_average_server("weighted_moving_average")

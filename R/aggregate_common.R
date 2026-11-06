@@ -50,6 +50,7 @@ aggregate_data_ui <- function(id) {
                 accept = c(".xlsx", ".xls", ".csv")),
       div(class = "data-actions", example_button(ns),
           downloadLink(ns("template"), "Empty Excel template", class = "template-link")),
+      selectInput(ns("dataset"), "Or choose from the data library", choices = c("(none loaded yet)" = "")),
       selectInput(ns("name_col"), "Period names column", choices = NULL),
       selectInput(ns("demand_col"), "Demand forecast column", choices = NULL),
       selectInput(ns("days_col"), "Working days column", choices = NULL),
@@ -99,18 +100,35 @@ aggregate_data_server <- function(id) {
     num <- function(x) if (is.null(x) || is.na(x)) 0 else x
 
     data_rv <- reactiveVal(NULL)
+    lib <- data_library(session)
+
+    # a file uploaded here goes into the library (all its sheets) and is selected
     observeEvent(input$file, {
-      df <- tryCatch(read_data_file(input$file$datapath, input$file$name),
-                     error = function(e) e)
-      if (inherits(df, "error")) {
-        showNotification(conditionMessage(df), type = "error")
+      res <- tryCatch(library_add_files(session, input$file), error = function(e) e)
+      if (inherits(res, "error") || length(res$added) == 0) {
+        showNotification(if (inherits(res, "error")) conditionMessage(res) else "The file could not be read.",
+                         type = "error")
         return()
       }
-      data_rv(df)
+      data_rv(lib()[[res$added[1]]])
+      updateSelectInput(session, "dataset", choices = c("(choose a dataset)" = "", names(lib())),
+                        selected = res$added[1])
     })
     observeEvent(input$example, {
       data_rv(example_aggregate_data())
       updateRadioButtons(session, "k_mode", selected = "past")
+      updateSelectInput(session, "dataset", selected = "")
+    })
+    observeEvent(lib(), {
+      nms <- names(lib())
+      sel <- if (isTruthy(input$dataset) && input$dataset %in% nms) input$dataset else ""
+      updateSelectInput(session, "dataset",
+                        choices = c(if (length(nms)) c("(choose a dataset)" = "") else c("(none loaded yet)" = ""), nms),
+                        selected = sel)
+    })
+    observeEvent(input$dataset, {
+      req(input$dataset, input$dataset %in% names(lib()))
+      data_rv(lib()[[input$dataset]])
     })
     data <- reactive({ req(data_rv()); data_rv() })
 

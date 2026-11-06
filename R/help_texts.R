@@ -10,6 +10,10 @@ help_texts <- list(
   file = "Excel (.xlsx, .xls) or .csv. One row per period, oldest first; one column per series. You can also drag a file onto this panel.",
   column = "The numeric column to forecast.",
   label_col = "Column with the period names or dates. Only used as labels on the charts and tables.",
+  dataset = "Pick any dataset already loaded in the Data Library (or uploaded in another tab). Every Excel sheet is a separate dataset.",
+  files = "Select one or more Excel / csv files at once (Cmd or Shift + click). Every sheet becomes a dataset.",
+  folder = "Choose a folder: all .xlsx, .xls and .csv files in it are loaded; other files are skipped.",
+  selected = "The dataset shown in the preview, and the one used by the buttons below.",
 
   # --- forecasting ---------------------------------------------------
   mode = "Enter the parameters yourself, or let the app try many values and keep the ones with the smallest error.",
