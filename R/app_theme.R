@@ -338,9 +338,8 @@ home_card <- function(title, tag, items, goto = NULL, modules = NULL,
 home_ui <- function() {
   fluidPage(
     div(class = "hero",
-        div(class = "blob b1"), div(class = "blob b2"), div(class = "blob b3"),
         h1("Production Planning"),
-        p("Group 15 - interactive tools for forecasting and aggregate planning (Nahmias)."),
+        p("Group 15 \u2014 tools for forecasting and aggregate planning, following Nahmias' Production and Operations Analysis."),
         div(class = "hero-chips",
             span(class = "hero-chip", icon("chart-line"), " 12 forecasting methods"),
             span(class = "hero-chip", icon("industry"), " 6 planning methods"),
