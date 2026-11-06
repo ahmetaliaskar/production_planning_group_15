@@ -1263,7 +1263,7 @@
       "checksum": "5348ed7f7f62f21311779cce8ac80fa0"
     },
     "R/app_theme.R": {
-      "checksum": "84697c92945eaf9f762a8149ac100b85"
+      "checksum": "5f439ef1453e88890c5565dfaaa3027d"
     },
     "R/box_jenkins.R": {
       "checksum": "2eae0829dcdd20c0089166dfd8b0fcfb"
@@ -1323,7 +1323,7 @@
       "checksum": "54b4ba011b07aaee3540952eaa328aae"
     },
     "app.R": {
-      "checksum": "30919e2dec2510c562c57270d95dda9f"
+      "checksum": "e8c40dc24d11cb4c0ec14f8dbc547375"
     }
   },
   "users": null

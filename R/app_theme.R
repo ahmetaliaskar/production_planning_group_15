@@ -91,6 +91,12 @@ app_css <- function() {
     .table-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 10px;
            margin: 22px 0 8px; }
     .table-head h4 { margin: 0 !important; }
+    /* drag and drop: the whole left panel accepts a dropped file */
+    .shiny-input-container:has(input[type=file]) .form-control { border-style: dashed; }
+    .shiny-input-container:has(input[type=file])::after {
+           content: 'or drag and drop a file anywhere on this panel'; display: block;
+           font-size: .78rem; color: %4$s; margin-top: 4px; }
+    .well.drop-active { outline: 3px dashed %7$s; outline-offset: -6px; background: #eef4fc; }
     .empty-state { background: %5$s; border: 1px dashed #c9c8c2; border-radius: 12px;
            padding: 28px 24px; color: %4$s; text-align: center; margin-bottom: 14px; }
     .empty-state .empty-title { font-weight: 700; color: %6$s; font-size: 1.05rem; margin-bottom: 4px; }
@@ -114,6 +120,52 @@ app_css <- function() {
     @media (max-width: 767px) { .hero { padding: 24px 18px; } .hero h1 { font-size: 1.5rem; } }
   ", app_colors$page, app_colors$navy, app_colors$border, app_colors$ink_2,
      app_colors$surface, app_colors$ink, app_colors$series[1])))
+}
+
+
+# Drag and drop: a file dropped anywhere on a left panel (.well) that has a
+# file upload is given to that upload, exactly as if it had been chosen with
+# "Browse...". Shiny itself already handles drops on the file box; those are
+# left to Shiny. Files dropped elsewhere on the page are ignored instead of
+# being opened by the browser.
+app_dropzone_js <- function() {
+  tags$script(HTML("
+    (function () {
+      function panelOf(e) {
+        var w = e.target.closest ? e.target.closest('.well') : null;
+        return (w && w.querySelector('input[type=file]')) ? w : null;
+      }
+      function hasFiles(e) {
+        return e.dataTransfer && Array.prototype.indexOf.call(e.dataTransfer.types || [], 'Files') >= 0;
+      }
+      document.addEventListener('dragover', function (e) {
+        if (!hasFiles(e)) return;
+        e.preventDefault();
+        document.querySelectorAll('.well.drop-active').forEach(function (w) { w.classList.remove('drop-active'); });
+        var w = panelOf(e);
+        if (w) { w.classList.add('drop-active'); e.dataTransfer.dropEffect = 'copy'; }
+        else { e.dataTransfer.dropEffect = 'none'; }
+      });
+      document.addEventListener('dragleave', function (e) {
+        if (e.relatedTarget === null) {
+          document.querySelectorAll('.well.drop-active').forEach(function (w) { w.classList.remove('drop-active'); });
+        }
+      });
+      document.addEventListener('drop', function (e) {
+        if (!hasFiles(e)) return;
+        e.preventDefault();
+        document.querySelectorAll('.well.drop-active').forEach(function (w) { w.classList.remove('drop-active'); });
+        if (e.target.closest && e.target.closest('.input-group')) return;   // Shiny's own drop box
+        var w = panelOf(e);
+        if (!w || !e.dataTransfer.files.length) return;
+        var input = w.querySelector('input[type=file]');
+        var dt = new DataTransfer();
+        dt.items.add(e.dataTransfer.files[0]);
+        input.files = dt.files;
+        input.dispatchEvent(new Event('change', { bubbles: true }));
+      });
+    })();
+  "))
 }
 
 

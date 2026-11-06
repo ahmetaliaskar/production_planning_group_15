@@ -2,7 +2,7 @@ library(shiny)
 
 ui <- navbarPage("Group 15 - Production Planning",
                  theme = app_theme(),
-                 header = app_css(),
+                 header = tagList(app_css(), app_dropzone_js()),
                  tabPanel("Home", home_ui()),
                  tabPanel("Learning Curve", learning_curve_ui("learning_curve")),
                  navbarMenu("Forecasting",
