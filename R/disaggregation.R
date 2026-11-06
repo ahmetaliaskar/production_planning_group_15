@@ -56,7 +56,7 @@ disaggregation_ui <- function(id) {
   ns <- NS(id)
   sidebarLayout(
     sidebarPanel(
-      helpText("Y_j = X * sqrt(K_j lambda_j) / sum sqrt(K_i lambda_i), kept within the bounds a_j <= Y_j <= b_j."),
+      formula_box(c("\\(Y_j = X\\, \\dfrac{\\sqrt{K_j \\lambda_j}}{\\sum_i \\sqrt{K_i \\lambda_i}}\\)", "\\(a_j \\le Y_j \\le b_j\\)")),
       textAreaInput(ns("families"),
                     "Product families (one per line: Family, Setup cost, Demand, Lower bound, Upper bound)",
                     value = paste("Family, Setup cost, Demand, Lower bound, Upper bound",

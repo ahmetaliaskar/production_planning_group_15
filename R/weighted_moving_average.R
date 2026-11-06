@@ -51,7 +51,7 @@ parse_weights <- function(text) {
 weighted_moving_average_ui <- function(id) {
   ns <- NS(id)
   forecast_page(ns,
-    "F_t = w1 D(t-1) + w2 D(t-2) + ... + wN D(t-N). Weights add up to 1.",
+    c("\\(F_t = \\sum_{i=1}^{N} w_i\\, D_{t-i}\\)", "\\(w_i \\ge 0, \\quad \\sum_{i} w_i = 1\\)"),
     parameter_mode_ui(ns,
       manual = textInput(ns("weights"),
                          "Weights, most recent period first (comma separated)",
@@ -68,7 +68,7 @@ weighted_moving_average_ui <- function(id) {
 # ---------------------------------------------------------------------
 weighted_moving_average_server <- function(id) {
   moduleServer(id, function(input, output, session) {
-    demand <- series_input_server("data")
+    demand <- series_input_server("data", example_column = "Stationary")
 
     result <- reactive({
       d <- demand(); n <- length(d)

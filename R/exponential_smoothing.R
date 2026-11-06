@@ -35,7 +35,7 @@ exponential_smoothing_run <- function(d, alpha, S0) {
 exponential_smoothing_ui <- function(id) {
   ns <- NS(id)
   forecast_page(ns,
-    "S_t = alpha D_t + (1 - alpha) S_(t-1);  F_t = S_(t-1).",
+    c("\\(S_t = \\alpha D_t + (1-\\alpha)\\, S_{t-1}\\)", "\\(F_t = S_{t-1}\\)"),
     parameter_mode_ui(ns,
       manual = numericInput(ns("alpha"), "alpha (0 < alpha <= 1)",
                             value = 0.2, min = 0.01, max = 1, step = 0.05)
@@ -50,7 +50,7 @@ exponential_smoothing_ui <- function(id) {
 # ---------------------------------------------------------------------
 exponential_smoothing_server <- function(id) {
   moduleServer(id, function(input, output, session) {
-    demand <- series_input_server("data")
+    demand <- series_input_server("data", example_column = "Stationary")
     observeEvent(demand(), suggest_initial_values(session, demand()))
 
     result <- reactive({

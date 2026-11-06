@@ -82,7 +82,15 @@ app_css <- function() {
     .kpi .kpi-value { font-size: 1.45rem; font-weight: 700; color: %6$s;
            font-variant-numeric: tabular-nums; line-height: 1.3; }
     .kpi .kpi-sub { font-size: .8rem; color: %4$s; }
+    .kpi .kpi-text { font-size: 1.1rem; line-height: 1.35; }
 
+    .formula-box { background: #f3f7fd; border: 1px solid #d6e4f7; border-radius: 10px;
+           padding: 10px 12px; margin-bottom: 14px; color: %6$s; font-size: .92rem; overflow-x: auto; }
+    .formula-box > div + div { margin-top: 4px; }
+    .example-btn { margin: -6px 0 14px; }
+    .table-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 10px;
+           margin: 22px 0 8px; }
+    .table-head h4 { margin: 0 !important; }
     .empty-state { background: %5$s; border: 1px dashed #c9c8c2; border-radius: 12px;
            padding: 28px 24px; color: %4$s; text-align: center; margin-bottom: 14px; }
     .empty-state .empty-title { font-weight: 700; color: %6$s; font-size: 1.05rem; margin-bottom: 4px; }
@@ -149,8 +157,14 @@ plot_legend <- function(labels, cols, pch = NA, lty = 1, lwd = 2, horiz = TRUE) 
 kpi_tile <- function(label, value, sub = NULL) {
   div(class = "kpi",
       div(class = "kpi-label", label),
-      div(class = "kpi-value", value),
+      div(class = if (grepl("[A-Za-z]", value)) "kpi-value kpi-text" else "kpi-value", value),
       if (!is.null(sub)) div(class = "kpi-sub", sub))
+}
+
+# Formula box at the top of the left panel. Each element of `lines` is one line;
+# \( ... \) inside a line is typeset by MathJax.
+formula_box <- function(lines) {
+  withMathJax(div(class = "formula-box", lapply(lines, function(l) div(HTML(l)))))
 }
 
 # Card shown before any data has been uploaded.

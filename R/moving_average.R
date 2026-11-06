@@ -42,7 +42,7 @@ moving_average_search <- function(d, Nmax, criterion) {
 moving_average_ui <- function(id) {
   ns <- NS(id)
   forecast_page(ns,
-    "F_t = average of the last N demands. For stationary series.",
+    c("\\(F_t = \\dfrac{1}{N}\\sum_{i=1}^{N} D_{t-i}\\)", "For stationary series."),
     parameter_mode_ui(ns,
       manual = numericInput(ns("N"), "N (number of past periods)",
                             value = 3, min = 1, step = 1),
@@ -58,7 +58,7 @@ moving_average_ui <- function(id) {
 # ---------------------------------------------------------------------
 moving_average_server <- function(id) {
   moduleServer(id, function(input, output, session) {
-    demand <- series_input_server("data")
+    demand <- series_input_server("data", example_column = "Stationary")
 
     result <- reactive({
       d <- demand(); n <- length(d)

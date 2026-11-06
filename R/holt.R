@@ -34,7 +34,7 @@ holt_run <- function(d, alpha, beta, S0, G0) {
 holt_ui <- function(id) {
   ns <- NS(id)
   forecast_page(ns,
-    "S_t = alpha D_t + (1-alpha)(S_(t-1) + G_(t-1));  G_t = beta (S_t - S_(t-1)) + (1-beta) G_(t-1);  F = S + tau G.",
+    c("\\(S_t = \\alpha D_t + (1-\\alpha)(S_{t-1} + G_{t-1})\\)", "\\(G_t = \\beta (S_t - S_{t-1}) + (1-\\beta)\\, G_{t-1}\\)", "\\(F_{t+\\tau} = S_t + \\tau\\, G_t\\)"),
     parameter_mode_ui(ns,
       manual = tagList(
         numericInput(ns("alpha"), "alpha (level)", value = 0.2,
@@ -53,7 +53,7 @@ holt_ui <- function(id) {
 # ---------------------------------------------------------------------
 holt_server <- function(id) {
   moduleServer(id, function(input, output, session) {
-    demand <- series_input_server("data")
+    demand <- series_input_server("data", example_column = "Trend")
     observeEvent(demand(), suggest_initial_values(session, demand()))
 
     result <- reactive({

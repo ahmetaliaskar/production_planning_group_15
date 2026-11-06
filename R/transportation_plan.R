@@ -148,7 +148,7 @@ transportation_show <- function(tp, X, ap) {
 transportation_plan_ui <- function(id) {
   ns <- NS(id)
   ap_page(ns,
-    "Regular time, overtime and subcontracting of each period are the sources; the demands of the periods are the destinations.",
+    c("Sources: RT, OT and SC of every period; destinations: the demands.", "Cell cost \\(= c_{source} + c_I\\,(j - t), \\quad j \\ge t\\)"),
     numericInput(ns("W"), "Workforce W (constant, used for regular-time capacity)",
                  value = 300, min = 0, step = 1),
     numericInput(ns("ot_pct"), "Overtime capacity (% of regular-time capacity, 0 = none)",
@@ -231,5 +231,6 @@ transportation_plan_server <- function(id, ap) {
     output$lc_table <- renderTable({ s <- solved(); transportation_show(s$tp, s$best, s$a) })
 
     render_ap_results(output, ap, result)
+    result      # returned so that the Compare Plans tab can use this plan
   })
 }

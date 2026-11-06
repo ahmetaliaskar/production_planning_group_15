@@ -15,9 +15,12 @@ Shiny application for the Production Planning course (Nahmias).
 
 | Menu | Tabs |
 |---|---|
+| Home | Overview and group members |
 | Learning Curve | Learning curve |
-| Forecasting (Assignment 2) | Moving Average, Weighted Moving Average, Simple Exponential Smoothing, Seasonal Factors (Quick and Dirty), Holt's Method, Seasonal Decomposition, Winters' Method, AR, MA, ARMA, ARIMA |
-| Aggregate Planning (Assignment 3) | Data and Costs, Zero-Inventory (Chase) Plan, Constant-Workforce (Level) Plan, Mixed Plan, Linear Programming, Transportation Method, Disaggregation (Square-Root Rule) |
+| Forecasting (Assignment 2) | Moving Average, Weighted Moving Average, Simple Exponential Smoothing, Seasonal Factors (Quick and Dirty), Holt's Method, Seasonal Decomposition, Winters' Method, AR, MA, ARMA, ARIMA, **Compare Methods** |
+| Aggregate Planning (Assignment 3) | Data and Costs, Zero-Inventory (Chase) Plan, Constant-Workforce (Level) Plan, Mixed Plan, Linear Programming, Transportation Method, Disaggregation (Square-Root Rule), **Compare Plans** |
+
+Every data tab has a **Load example data** button, and results can be downloaded as .csv.
 
 ## Repository structure
 
@@ -27,6 +30,8 @@ manifest.json      package list for Posit Connect Cloud
 R/
   forecast_common.R     shared tools of the forecasting modules
   aggregate_common.R    "Data and Costs" tab and shared tools of aggregate planning
+  app_theme.R           theme, colors, chart style and the Home page
+  example_data.R        built-in example data
   <method>.R            one module per method (<method>_ui / <method>_server)
 ```
 

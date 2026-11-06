@@ -42,7 +42,7 @@ mixed_plan_workers <- function(ap, change_periods, round_up = FALSE) {
 mixed_plan_ui <- function(id) {
   ns <- NS(id)
   ap_page(ns,
-    "The workforce stays constant between the periods you choose and changes only in those periods.",
+    c("The workforce changes only in the chosen periods.", "\\(W_{block} = \\max_{t} \\dfrac{\\sum_{k=a}^{t} D'_k - I_{a-1}}{\\sum_{k=a}^{t} K\\, n_k}\\)"),
     checkboxGroupInput(ns("changes"),
                        "Periods in which the workforce changes (period 1 always changes)",
                        choices = NULL)

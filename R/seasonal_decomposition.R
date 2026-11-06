@@ -56,7 +56,7 @@ seasonal_decomposition_run <- function(d, N) {
 seasonal_decomposition_ui <- function(id) {
   ns <- NS(id)
   forecast_page(ns,
-    "Centered MA -> seasonal factors -> deseasonalize -> trend line -> F_t = (a + b t) x c_j.",
+    c("Centered MA \\(\\to\\) ratios \\(D_t / \\text{CMA}_t\\) \\(\\to\\) factors \\(c_j\\)", "\\(F_t = (a + b\\,t)\\; c_j\\)"),
     numericInput(ns("N"), "Season length N (e.g. 4 = quarters, 12 = months)",
                  value = 4, min = 2, step = 1),
     helpText("This method has no smoothing constant to search for;",
@@ -70,7 +70,7 @@ seasonal_decomposition_ui <- function(id) {
 # ---------------------------------------------------------------------
 seasonal_decomposition_server <- function(id) {
   moduleServer(id, function(input, output, session) {
-    demand <- series_input_server("data")
+    demand <- series_input_server("data", example_column = "Seasonal")
 
     result <- reactive({
       d <- demand(); n <- length(d)

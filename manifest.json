@@ -1260,61 +1260,70 @@
   },
   "files": {
     "R/aggregate_common.R": {
-      "checksum": "d8d77e72bf7b10321e9260f31519fe5b"
+      "checksum": "5348ed7f7f62f21311779cce8ac80fa0"
     },
     "R/app_theme.R": {
-      "checksum": "c103ae4308cc1f9028c80d969bb6b89c"
+      "checksum": "84697c92945eaf9f762a8149ac100b85"
     },
     "R/box_jenkins.R": {
-      "checksum": "71275e1f4ffeb107c30b7ae800d2561a"
+      "checksum": "2eae0829dcdd20c0089166dfd8b0fcfb"
     },
     "R/chase_plan.R": {
-      "checksum": "68511c45a661fccde67bfe37fc66e5f7"
+      "checksum": "97d726e137e6f3df8fa52f77508622f5"
+    },
+    "R/compare_methods.R": {
+      "checksum": "d00f7dc26f470d31aaf49c79a8533593"
+    },
+    "R/compare_plans.R": {
+      "checksum": "62cdfd5a22248dfe1a8e1c133e539cc7"
     },
     "R/disaggregation.R": {
-      "checksum": "ade346a433401331fab6c7753b3b83e9"
+      "checksum": "0e6bf77a8eed321e534da4a218abada3"
+    },
+    "R/example_data.R": {
+      "checksum": "467b51d1e67efd08b91245ae7aeeb336"
     },
     "R/exponential_smoothing.R": {
-      "checksum": "df726b46fe7a89976d6d9a6fb3a8ffba"
+      "checksum": "775d9cb388f0672780c56a36c174fcea"
     },
     "R/forecast_common.R": {
-      "checksum": "d0734684d40930ab7938cf02f7286022"
+      "checksum": "3445955290d71bd9de1505c59757458b"
     },
     "R/holt.R": {
-      "checksum": "d6cc1d777f21cb132b120acd1de4aa42"
+      "checksum": "38a1a72fe3f0a60baad7cd03dfd750d0"
     },
     "R/learning_curve.R": {
-      "checksum": "9b20a6e9c563a628f70a59d1d89a1f05"
+      "checksum": "06a70f3b3aafd2e67caf7c960064d783"
     },
     "R/level_plan.R": {
-      "checksum": "711cae9b584295db85b689d66d43629c"
+      "checksum": "2b4c865204452b83b78b6650ad712fec"
     },
     "R/lp_plan.R": {
-      "checksum": "722d23b8cb42db767b6bfd3809ee20b0"
+      "checksum": "67cc333727a60161b22ae24ab1d745f6"
     },
     "R/mixed_plan.R": {
-      "checksum": "1c86f27bc6e9e9009d4619096396a0c6"
+      "checksum": "a3c228a5bb6f2cc47824a8d17e594e20"
     },
     "R/moving_average.R": {
-      "checksum": "548ec3eecaf4594d081b0f1b9d9a90df"
+      "checksum": "0b3b1c3128d4d593cd7e3f96f5596fd8"
     },
     "R/seasonal_decomposition.R": {
-      "checksum": "02d44c115e2c74daed985bf0cf6d1ec7"
+      "checksum": "b642fc31af11d3cb77bd9a61818d0ddb"
     },
     "R/seasonal_factors.R": {
-      "checksum": "c6e8fb48b31ada80fc6ac9586f349d1d"
+      "checksum": "6c016e0d63452ce83d2bf2a70ef72741"
     },
     "R/transportation_plan.R": {
-      "checksum": "503b2c89d5d7a8c61d2344a66d1f56e0"
+      "checksum": "8cc967c472c777d38528dd46199cd945"
     },
     "R/weighted_moving_average.R": {
-      "checksum": "da4d30191bf66619cf3765cdf0542916"
+      "checksum": "11d791a6064b438c6a84e72f9eae9335"
     },
     "R/winters.R": {
-      "checksum": "12aba0f5dde55c58e93b51c68fb14d97"
+      "checksum": "54b4ba011b07aaee3540952eaa328aae"
     },
     "app.R": {
-      "checksum": "14b82b062f5bca964460ed693284f153"
+      "checksum": "30919e2dec2510c562c57270d95dda9f"
     }
   },
   "users": null

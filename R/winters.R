@@ -51,7 +51,7 @@ winters_run <- function(d, N, alpha, beta, gamma, S0, G0, c0) {
 winters_ui <- function(id) {
   ns <- NS(id)
   forecast_page(ns,
-    "Level S, slope G and seasonal factors c are smoothed with alpha, beta, gamma. F = (S + tau G) c.",
+    c("\\(S_t = \\alpha \\dfrac{D_t}{c_{t-N}} + (1-\\alpha)(S_{t-1} + G_{t-1})\\)", "\\(G_t = \\beta (S_t - S_{t-1}) + (1-\\beta)\\, G_{t-1}\\)", "\\(c_t = \\gamma \\dfrac{D_t}{S_t} + (1-\\gamma)\\, c_{t-N}\\)", "\\(F_{t+\\tau} = (S_t + \\tau G_t)\\; c_{t+\\tau-N}\\)"),
     numericInput(ns("N"), "Season length N (e.g. 4 = quarters, 12 = months)",
                  value = 4, min = 2, step = 1),
     parameter_mode_ui(ns,
@@ -75,7 +75,7 @@ winters_ui <- function(id) {
 # ---------------------------------------------------------------------
 winters_server <- function(id) {
   moduleServer(id, function(input, output, session) {
-    demand <- series_input_server("data")
+    demand <- series_input_server("data", example_column = "Seasonal")
     observeEvent(demand(), suggest_initial_values(session, demand()))
 
     result <- reactive({

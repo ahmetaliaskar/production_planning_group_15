@@ -87,22 +87,37 @@ series_input_ui <- function(id) {
   tagList(
     fileInput(ns("file"), "Upload data (.xlsx, .xls or .csv)",
               accept = c(".xlsx", ".xls", ".csv")),
+    example_button(ns),
     selectInput(ns("column"), "Series (demand column)", choices = NULL)
   )
 }
 
 # Returns a reactive with the demand vector of the chosen column.
-series_input_server <- function(id) {
+# `example_column`: the column chosen when the example data is loaded.
+series_input_server <- function(id, example_column = "Seasonal") {
   moduleServer(id, function(input, output, session) {
-    data <- reactive({
-      req(input$file)
-      tryCatch(read_data_file(input$file$datapath, input$file$name),
-               error = function(e) validate(need(FALSE, conditionMessage(e))))
+    data <- reactiveVal(NULL)
+    preferred <- reactiveVal(NULL)
+
+    observeEvent(input$file, {
+      df <- tryCatch(read_data_file(input$file$datapath, input$file$name),
+                     error = function(e) e)
+      if (inherits(df, "error")) {
+        showNotification(conditionMessage(df), type = "error")
+        return()
+      }
+      preferred(NULL)
+      data(df)
     })
+    observeEvent(input$example, {
+      preferred(example_column)
+      data(example_forecast_data())
+    })
+
     observeEvent(data(), {
       cols <- numeric_columns(data())
-      updateSelectInput(session, "column", choices = cols,
-                        selected = tail(cols, 1))
+      sel <- if (!is.null(preferred()) && preferred() %in% cols) preferred() else tail(cols, 1)
+      updateSelectInput(session, "column", choices = cols, selected = sel)
     })
     reactive({
       req(input$column, input$column %in% names(data()))
@@ -260,7 +275,8 @@ forecast_results_ui <- function(ns, extra = NULL) {
     tableOutput(ns("search_table")),
     h4("Forecasts for future periods"),
     tableOutput(ns("future_table")),
-    h4("Calculations by period"),
+    div(class = "table-head", h4("Calculations by period"),
+        downloadButton(ns("download"), "Download .csv", class = "btn-sm btn-outline-secondary")),
     tableOutput(ns("period_table"))
   )
 }
@@ -348,17 +364,30 @@ render_forecast_results <- function(output, result) {
     out
   })
 
-  output$period_table <- renderTable({
-    r <- result()
-    n <- length(r$d)
-    out <- data.frame(Period = 1:n,
-                      "Demand D_t" = r$d,
-                      "Forecast F_t" = round(r$fitted, 3),
-                      "Error e_t = F_t - D_t" = round(r$fitted - r$d, 3),
-                      check.names = FALSE)
-    if (!is.null(r$detail)) out <- cbind(out, round(r$detail, 4))
-    out
-  }, na = "")
+  output$period_table <- renderTable(forecast_period_table(result()), na = "")
+
+  output$download <- downloadHandler(
+    filename = function() paste0(gsub("[^A-Za-z0-9]+", "_", result()$method), ".csv"),
+    content = function(file) {
+      r <- result()
+      out <- forecast_period_table(r)
+      n <- length(r$d); h <- length(r$future)
+      fut <- out[rep(1, h), ]; fut[] <- NA
+      fut$Period <- (n + 1):(n + h); fut[["Forecast F_t"]] <- round(r$future, 3)
+      utils::write.csv(rbind(out, fut), file, row.names = FALSE, na = "")
+    })
+}
+
+# Period-by-period table (screen and download).
+forecast_period_table <- function(r) {
+  n <- length(r$d)
+  out <- data.frame(Period = 1:n,
+                    "Demand D_t" = r$d,
+                    "Forecast F_t" = round(r$fitted, 3),
+                    "Error e_t = F_t - D_t" = round(r$fitted - r$d, 3),
+                    check.names = FALSE)
+  if (!is.null(r$detail)) out <- cbind(out, round(r$detail, 4))
+  out
 }
 
 # A complete page for a forecasting method:
@@ -366,7 +395,7 @@ render_forecast_results <- function(output, result) {
 forecast_page <- function(ns, explanation, ...) {
   sidebarLayout(
     sidebarPanel(
-      helpText(explanation),
+      formula_box(explanation),
       series_input_ui(ns("data")),
       ...,
       horizon_ui(ns)

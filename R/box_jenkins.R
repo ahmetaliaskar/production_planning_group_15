@@ -72,14 +72,17 @@ box_jenkins_ui <- function(id, type = "ARIMA") {
   has_q <- type %in% c("MA", "ARMA", "ARIMA")
   min_order <- if (type == "ARIMA") 0 else 1
   formula_text <- switch(type,
-    AR    = "AR(p): D_t depends on its own p previous values.",
-    MA    = "MA(q): D_t depends on the q previous random errors.",
-    ARMA  = "ARMA(p,q): AR and MA parts together.",
-    ARIMA = "ARIMA(p,d,q): ARMA(p,q) for the series differenced d times.")
+    AR    = c("\\(D_t = \\mu + \\sum_{i=1}^{p} \\phi_i D_{t-i} + \\epsilon_t\\)",
+              "PACF cuts off after lag \\(p\\)."),
+    MA    = c("\\(D_t = \\mu + \\epsilon_t - \\sum_{i=1}^{q} \\theta_i \\epsilon_{t-i}\\)",
+              "ACF cuts off after lag \\(q\\)."),
+    ARMA  = c("\\(D_t = \\mu + \\sum_{i=1}^{p} \\phi_i D_{t-i} + \\epsilon_t - \\sum_{i=1}^{q} \\theta_i \\epsilon_{t-i}\\)"),
+    ARIMA = c("ARMA\\((p, q)\\) for \\(\\nabla^d D_t\\)",
+              "\\(\\nabla D_t = D_t - D_{t-1}\\)"))
 
   sidebarLayout(
     sidebarPanel(
-      helpText(formula_text),
+      formula_box(formula_text),
       series_input_ui(ns("data")),
       parameter_mode_ui(ns,
         manual = tagList(
@@ -123,7 +126,7 @@ box_jenkins_ui <- function(id, type = "ARIMA") {
 # ---------------------------------------------------------------------
 box_jenkins_server <- function(id, type = "ARIMA") {
   moduleServer(id, function(input, output, session) {
-    demand <- series_input_server("data")
+    demand <- series_input_server("data", example_column = if (type == "ARIMA") "Trend" else "Stationary")
     include_mean <- reactive(if (type == "ARIMA") FALSE else isTRUE(input$mean))
     get_order <- function(name, default) {
       v <- input[[name]]

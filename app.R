@@ -23,7 +23,9 @@ ui <- navbarPage("Group 15 - Production Planning",
                    tabPanel("AR", box_jenkins_ui("bj_ar", "AR")),
                    tabPanel("MA", box_jenkins_ui("bj_ma", "MA")),
                    tabPanel("ARMA", box_jenkins_ui("bj_arma", "ARMA")),
-                   tabPanel("ARIMA", box_jenkins_ui("bj_arima", "ARIMA"))
+                   tabPanel("ARIMA", box_jenkins_ui("bj_arima", "ARIMA")),
+                   "----",
+                   tabPanel("Compare Methods", compare_methods_ui("compare_methods"))
                  ),
                  navbarMenu("Aggregate Planning",
                    tabPanel("Data and Costs", aggregate_data_ui("aggregate_data")),
@@ -37,7 +39,9 @@ ui <- navbarPage("Group 15 - Production Planning",
                    tabPanel("Linear Programming", lp_plan_ui("lp_plan")),
                    tabPanel("Transportation Method", transportation_plan_ui("transportation_plan")),
                    "----",
-                   tabPanel("Disaggregation (Square-Root Rule)", disaggregation_ui("disaggregation"))
+                   tabPanel("Disaggregation (Square-Root Rule)", disaggregation_ui("disaggregation")),
+                   "----",
+                   tabPanel("Compare Plans", compare_plans_ui("compare_plans"))
                  )
 )
 
@@ -54,6 +58,7 @@ server <- function(input, output, session) {
   box_jenkins_server("bj_ma", "MA")
   box_jenkins_server("bj_arma", "ARMA")
   box_jenkins_server("bj_arima", "ARIMA")
+  compare_methods_server("compare_methods")
 
   # Aggregate planning: the data entered once in "Data and Costs" (ap)
   # is passed to every aggregate planning module
@@ -62,12 +67,18 @@ server <- function(input, output, session) {
   level <- level_plan_server("level_plan", ap)
   mixed <- mixed_plan_server("mixed_plan", ap)
   lp    <- lp_plan_server("lp_plan", ap)
-  transportation_plan_server("transportation_plan", ap)
+  transport <- transportation_plan_server("transportation_plan", ap)
   disaggregation_server("disaggregation", ap,
                         plans = list("Zero-inventory (chase) plan" = chase,
                                      "Constant-workforce (level) plan" = level,
                                      "Mixed plan" = mixed,
                                      "Linear programming plan" = lp))
+  compare_plans_server("compare_plans", ap,
+                       plans = list("Zero-inventory (chase) plan" = chase,
+                                    "Constant-workforce (level) plan" = level,
+                                    "Mixed plan" = mixed,
+                                    "Linear programming plan" = lp,
+                                    "Transportation method" = transport))
 }
 
 shinyApp(ui, server)

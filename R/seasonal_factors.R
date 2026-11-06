@@ -33,7 +33,7 @@ seasonal_factors_run <- function(d, N) {
 seasonal_factors_ui <- function(id) {
   ns <- NS(id)
   forecast_page(ns,
-    "Seasonal factor c_j = average of D_t / (overall mean) for position j. F_t = mean x c_j.",
+    c("\\(c_j = \\text{average of } D_t / \\bar{D}\\) over the periods of position \\(j\\)", "\\(F_t = \\bar{D}\\; c_j\\)"),
     numericInput(ns("N"), "Season length N (e.g. 4 = quarters, 12 = months)",
                  value = 4, min = 2, step = 1),
     helpText("This method has no smoothing constant to search for;",
@@ -47,7 +47,7 @@ seasonal_factors_ui <- function(id) {
 # ---------------------------------------------------------------------
 seasonal_factors_server <- function(id) {
   moduleServer(id, function(input, output, session) {
-    demand <- series_input_server("data")
+    demand <- series_input_server("data", example_column = "Seasonal")
 
     result <- reactive({
       d <- demand(); n <- length(d)

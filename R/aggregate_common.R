@@ -48,6 +48,7 @@ aggregate_data_ui <- function(id) {
       h4("1. Demand data"),
       fileInput(ns("file"), "Upload data (.xlsx, .xls or .csv)",
                 accept = c(".xlsx", ".xls", ".csv")),
+      example_button(ns),
       selectInput(ns("name_col"), "Period names column", choices = NULL),
       selectInput(ns("demand_col"), "Demand forecast column", choices = NULL),
       selectInput(ns("days_col"), "Working days column", choices = NULL),
@@ -95,11 +96,21 @@ aggregate_data_server <- function(id) {
   moduleServer(id, function(input, output, session) {
     num <- function(x) if (is.null(x) || is.na(x)) 0 else x
 
-    data <- reactive({
-      req(input$file)
-      tryCatch(read_data_file(input$file$datapath, input$file$name),
-               error = function(e) validate(need(FALSE, conditionMessage(e))))
+    data_rv <- reactiveVal(NULL)
+    observeEvent(input$file, {
+      df <- tryCatch(read_data_file(input$file$datapath, input$file$name),
+                     error = function(e) e)
+      if (inherits(df, "error")) {
+        showNotification(conditionMessage(df), type = "error")
+        return()
+      }
+      data_rv(df)
     })
+    observeEvent(input$example, {
+      data_rv(example_aggregate_data())
+      updateRadioButtons(session, "k_mode", selected = "past")
+    })
+    data <- reactive({ req(data_rv()); data_rv() })
 
     # Guess the columns when a file is uploaded
     observeEvent(data(), {
@@ -270,7 +281,8 @@ ap_results_ui <- function(ns) {
     plotOutput(ns("cum_plot"), height = "340px"),
     h4("Cost of each item"),
     tableOutput(ns("cost_table")),
-    h4(textOutput(ns("plan_title_1"))),
+    div(class = "table-head", h4(textOutput(ns("plan_title_1"))),
+        downloadButton(ns("download"), "Download plans (.csv)", class = "btn-sm btn-outline-secondary")),
     tableOutput(ns("plan_table_1")),
     h4(textOutput(ns("plan_title_2"))),
     tableOutput(ns("plan_table_2"))
@@ -351,6 +363,19 @@ render_ap_results <- function(output, ap, result) {
     p <- result()$plans
     if (length(p) >= 2) paste("Plan -", names(p)[2]) else ""
   })
+  output$download <- downloadHandler(
+    filename = function() paste0(gsub("[^A-Za-z0-9]+", "_", result()$title), ".csv"),
+    content = function(file) {
+      r <- result()
+      out <- do.call(rbind, lapply(names(r$plans), function(nm) {
+        p <- r$plans[[nm]]
+        num <- vapply(p, is.numeric, logical(1))
+        p[num] <- lapply(p[num], function(x) round(x, 3))
+        cbind(Plan = nm, p)
+      }))
+      utils::write.csv(out, file, row.names = FALSE)
+    })
+
   output$plan_table_2 <- renderTable({
     p <- result()$plans
     if (length(p) >= 2) ap_display_plan(p[[2]]) else NULL
@@ -373,7 +398,7 @@ ap_with_rounding <- function(original, rounded_fn) {
 # A complete page: the module's own controls on the left, results on the right.
 ap_page <- function(ns, explanation, ..., extra_main = NULL) {
   sidebarLayout(
-    sidebarPanel(helpText(explanation), ...,
+    sidebarPanel(formula_box(explanation), ...,
                  helpText("Data, costs, K and plant data come from the 'Data and Costs' tab.")),
     mainPanel(ap_results_ui(ns), extra_main)
   )

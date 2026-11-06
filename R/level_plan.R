@@ -23,7 +23,7 @@ level_plan_workers <- function(ap) max(0, level_plan_ratios(ap))
 # ---------------------------------------------------------------------
 level_plan_ui <- function(id) {
   ns <- NS(id)
-  ap_page(ns, "W = max over t of (cumulative net demand) / (cumulative units per worker).",
+  ap_page(ns, c("\\(W = \\max_t \\dfrac{\\sum_{k \\le t} D'_k}{\\sum_{k \\le t} K\\, n_k}\\)", "One workforce level, no shortages."),
           extra_main = tagList(h4("Workers needed to cover cumulative net demand"),
                                tableOutput(ns("ratio_table"))))
 }
