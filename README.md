@@ -59,6 +59,10 @@ Example files are in the `data/` folder:
 |---|---|---|
 | `forecast_example.xlsx` / `.csv` | Forecasting tabs | 24 quarters; columns `Stationary`, `Trend`, `Seasonal` |
 | `aggregate_example.xlsx` / `.csv` | Aggregate Planning - Data and Costs | 6 months; `Month`, `Demand`, `Working days` |
+| `company_data.xlsx` | Data Library (several sheets) | Monthly sales of 4 products (stable, growing, seasonal, growing + seasonal; 36 months), quarterly sales (24 quarters), a 12-month aggregate plan, product families |
+| `weekly_demand.csv` | Any forecasting tab | 52 weeks of demand |
+
+Tip: load the whole `data/` folder in the **Data Library** tab with "Add a whole folder".
 
 - Forecasting: an Excel (.xlsx, .xls) or .csv file with one or more numeric columns;
   the series is chosen in the app.
