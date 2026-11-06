@@ -151,6 +151,9 @@ transportation_plan_ui <- function(id) {
     c("Sources: RT, OT and SC of every period; destinations: the demands.", "Cell cost \\(= c_{source} + c_I\\,(j - t), \\quad j \\ge t\\)"),
     numericInput(ns("W"), "Workforce W (constant, used for regular-time capacity)",
                  value = 300, min = 0, step = 1),
+    helpText("Default: the level-plan workforce (the smallest constant workforce",
+             "with no shortage on regular time). A smaller W can work with overtime",
+             "or subcontracting."),
     numericInput(ns("ot_pct"), "Overtime capacity (% of regular-time capacity, 0 = none)",
                  value = 20, min = 0),
     numericInput(ns("sub_cap"), "Subcontracting capacity per period (units, 0 = none)",
@@ -174,9 +177,12 @@ transportation_plan_server <- function(id, ap) {
   moduleServer(id, function(input, output, session) {
     num <- function(x) if (is.null(x) || is.na(x)) 0 else x
 
-    # Suggest the starting workforce when the data changes
-    observeEvent(tryCatch(ap()$W0, error = function(e) NULL), {
-      updateNumericInput(session, "W", value = ap()$W0)
+    # Default workforce: the level-plan workforce, i.e. the smallest constant
+    # workforce that meets every period's demand on regular time alone
+    # (so the transportation problem is always feasible). It is recomputed
+    # whenever the demand, working days or K change; the user can edit it.
+    observeEvent(tryCatch(list(ap()$Dnet, ap()$days, ap()$K), error = function(e) NULL), {
+      updateNumericInput(session, "W", value = ceiling(level_plan_workers(ap()) - 1e-9))
     })
 
     solved <- reactive({
