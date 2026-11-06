@@ -8,6 +8,8 @@ Shiny application for the Production Planning course (Nahmias).
 
 - Ahmet Ali Askar
 - Eren Yalçınkaya
+- Bulut Sakallıoğlu
+- Bilal İskender
 
 ## Contents of the application
 
