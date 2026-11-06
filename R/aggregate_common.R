@@ -87,7 +87,8 @@ aggregate_data_ui <- function(id) {
       div(class = "result-title", "Data and costs"),
       uiOutput(ns("data_kpis")),
       plotOutput(ns("demand_plot"), height = "300px"),
-      h4("Data used by the Aggregate Planning tabs"),
+      div(class = "table-head", h4("Data used by the Aggregate Planning tabs"),
+          downloadButton(ns("download"), "Download Excel", class = "btn-sm btn-outline-secondary")),
       tableOutput(ns("data_table"))
     )
   )
@@ -186,6 +187,23 @@ aggregate_data_server <- function(id) {
           kpi_tile("Total net demand", if (is.null(a)) "-" else fmt_num(sum(a$Dnet), 0)),
           kpi_tile("Starting workforce", fmt_num(num(input$W0), 0)))
     })
+
+    output$download <- downloadHandler(
+      filename = function() "aggregate_planning_data.xlsx",
+      content = function(file) {
+        a <- ap()
+        k <- a$costs
+        writexl::write_xlsx(list(
+          Data = data.frame(Period = a$periods, "Demand forecast" = a$D, "Working days" = a$days,
+                            "Net demand D'" = a$Dnet, "Units per worker (K n_t)" = a$K * a$days,
+                            "Cum. net demand" = cumsum(a$Dnet), check.names = FALSE),
+          `Costs and plant` = data.frame(
+            Item = c("Hiring cost per worker", "Firing cost per worker", "Holding cost per unit per period",
+                     "Regular time cost per unit", "Overtime cost per unit", "Idle time cost per unit",
+                     "Subcontracting cost per unit", "Starting workforce W0", "Starting inventory I0",
+                     "Required ending inventory IT", "K (units per worker per day)"),
+            Value = c(k$hire, k$fire, k$hold, k$reg, k$ot, k$idle, k$sub, a$W0, a$I0, a$IT, a$K))), file)
+      })
 
     output$data_table <- renderTable({
       a <- ap()

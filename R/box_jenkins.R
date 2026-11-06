@@ -175,11 +175,24 @@ box_jenkins_server <- function(id, type = "ARIMA") {
       if (dd >= 2) series[["2nd difference"]] <- diff(d, differences = 2)
       par(mfrow = c(length(series), 2))
       plot_setup(mar = c(4, 4.2, 2.6, 1))
+      # ACF / PACF need at least 3 values that are not all equal
+      note_panel <- function(title_text, why) {
+        plot.new(); title(title_text, adj = 0, line = 1)
+        text(0.5, 0.5, why, col = app_colors$ink_2, cex = 0.85)
+      }
       for (nm in names(series)) {
-        stats::acf(series[[nm]], main = "", col = app_colors$series[1], lwd = 3,
+        x <- series[[nm]]
+        why <- if (length(x) < 3) "Not enough values for an ACF."
+               else if (stats::sd(x) == 0) "All values are equal: no autocorrelation to show."
+               else NULL
+        if (!is.null(why)) {
+          note_panel(paste("ACF -", nm), why); note_panel(paste("PACF -", nm), why)
+          next
+        }
+        stats::acf(x, main = "", col = app_colors$series[1], lwd = 3,
                    ci.col = app_colors$series[2])
         title(paste("ACF -", nm), adj = 0, line = 1)
-        stats::pacf(series[[nm]], main = "", col = app_colors$series[1], lwd = 3,
+        stats::pacf(x, main = "", col = app_colors$series[1], lwd = 3,
                     ci.col = app_colors$series[2])
         title(paste("PACF -", nm), adj = 0, line = 1)
       }

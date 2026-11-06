@@ -1290,7 +1290,7 @@
   },
   "files": {
     "R/aggregate_common.R": {
-      "checksum": "7ff7e0e9409fec2945a2cd665078f0cd"
+      "checksum": "055f9787c1abad9e8760458ef31967d8"
     },
     "R/app_style.R": {
       "checksum": "0a26fb97b221163f1ebd79d4ef896f13"
@@ -1299,7 +1299,7 @@
       "checksum": "c136f3f947f0cbb9122fcded65ab8c3c"
     },
     "R/box_jenkins.R": {
-      "checksum": "d6081a403e4d9cc2b56069b3eec4336c"
+      "checksum": "e9672c69dc7d62b48a42c7b3de0f5e61"
     },
     "R/chase_plan.R": {
       "checksum": "97d726e137e6f3df8fa52f77508622f5"
@@ -1329,7 +1329,7 @@
       "checksum": "e87cee92cc0fde9889d335974d6adab9"
     },
     "R/learning_curve.R": {
-      "checksum": "06a70f3b3aafd2e67caf7c960064d783"
+      "checksum": "7ec98101f760342c2e2642bfd568be05"
     },
     "R/level_plan.R": {
       "checksum": "2b4c865204452b83b78b6650ad712fec"

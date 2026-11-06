@@ -33,7 +33,8 @@ learning_curve_ui <- function(id) {
       div(class = "result-title", textOutput(ns("headline"), inline = TRUE)),
       uiOutput(ns("kpis")),
       plotOutput(ns("plot"), height = "340px"),
-      h4("Time per unit when the output doubles"),
+      div(class = "table-head", h4("Time per unit when the output doubles"),
+          downloadButton(ns("download"), "Download Excel", class = "btn-sm btn-outline-secondary")),
       tableOutput(ns("doubling_table"))
     )
   )
@@ -78,6 +79,18 @@ learning_curve_server <- function(id) {
       plot_legend(c("Time per unit", "Doubling points (1, 2, 4, 8, ...)"),
                   c(app_colors$series[1], app_colors$series[2]), pch = c(NA, 16), lty = c(1, NA))
     }, bg = "white", res = 96)
+
+    output$download <- downloadHandler(
+      filename = function() paste0("learning_curve_", round(100 * input$L), ".xlsx"),
+      content = function(file) {
+        cv <- curve()
+        writexl::write_xlsx(list(
+          Summary = data.frame(Item = c("Learning rate L", "Exponent b", "Time for the first unit T1",
+                                        "Number of units", "Total time", "Average time per unit"),
+                               Value = c(input$L, cv$b, input$T1, length(cv$u), sum(cv$time), mean(cv$time))),
+          `Time per unit` = data.frame(Unit = cv$u, "Time per unit" = cv$time,
+                                       "Cumulative time" = cumsum(cv$time), check.names = FALSE)), file)
+      })
 
     output$doubling_table <- renderTable({
       cv <- curve()
