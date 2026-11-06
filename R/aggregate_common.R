@@ -241,6 +241,9 @@ ap_build_plan <- function(ap, W, O = 0, U = 0, S = 0) {
   Tn <- length(ap$Dnet)
   full <- function(x) if (length(x) == 1) rep(x, Tn) else x
   W <- full(W); O <- full(O); U <- full(U); S <- full(S)
+  # remove round-off from the LP solver (e.g. 2.8e-11 instead of 0, 300.0000001 instead of 300)
+  tidy <- function(x) { x[abs(x) < 1e-6] <- 0; r <- round(x); x[abs(x - r) < 1e-6] <- r[abs(x - r) < 1e-6]; x }
+  W <- tidy(W); O <- tidy(O); U <- tidy(U); S <- tidy(S)
   per_worker <- ap$K * ap$days
   regular <- per_worker * W - U
   produced <- regular + O + S
@@ -257,7 +260,7 @@ ap_build_plan <- function(ap, W, O = 0, U = 0, S = 0) {
              Subcontract = S,
              "Cum. production" = cumsum(produced),
              "Cum. net demand" = cumsum(ap$Dnet),
-             Inventory = cumsum(produced - ap$Dnet),
+             Inventory = (function(x) { x[abs(x) < 1e-6] <- 0; x })(cumsum(produced - ap$Dnet)),
              check.names = FALSE)
 }
 
