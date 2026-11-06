@@ -134,6 +134,46 @@ period_label <- function(d, t) {
          if (is.null(lab)) as.character(t) else as.character(lab[pmin(t, n)]))
 }
 
+# Season length N guessed from the period names:
+#   "2023-01", "01/2023", month names        -> 12 (monthly)
+#   "Q1", "2021-Q1", "Q3-2024"               -> 4  (quarterly)
+#   "W01", "Week 5", "2024-W10"              -> 52 (weekly)
+#   real dates: the usual gap between dates  -> 12 / 4 / 52 / 7 (daily)
+# Returns NA when nothing is recognised.
+detect_season_length <- function(d) {
+  lab <- attr(d, "labels")
+  if (is.null(lab)) return(NA_real_)
+  lab <- trimws(as.character(lab)); lab <- lab[!is.na(lab) & nzchar(lab)]
+  if (length(lab) < 3) return(NA_real_)
+  most <- function(pattern) mean(grepl(pattern, lab, ignore.case = TRUE, perl = TRUE)) >= 0.8
+  if (most("^\\d{4}[-/.]\\d{1,2}$|^\\d{1,2}[-/.]\\d{4}$")) return(12)
+  if (most("^(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\\.?([ -]?\\d{2,4})?$")) return(12)
+  if (most("(^|[^a-z])q[1-4]([^0-9]|$)")) return(4)
+  if (most("^w(eek)?[ -]?\\d{1,2}$|\\d{4}[-/ ]?w\\d{1,2}$")) return(52)
+  dates <- suppressWarnings(as.Date(lab, optional = TRUE))
+  if (mean(!is.na(dates)) >= 0.8) {
+    gap <- stats::median(as.numeric(diff(sort(dates[!is.na(dates)]))))
+    if (is.na(gap)) return(NA_real_)
+    if (gap >= 27 && gap <= 32) return(12)
+    if (gap >= 88 && gap <= 93) return(4)
+    if (gap >= 6 && gap <= 8) return(52)
+    if (gap == 1) return(7)
+  }
+  NA_real_
+}
+
+# Sets the module's N input when the data has a recognisable frequency and
+# contains at least two full seasons; tells the user with a notification.
+auto_season_length <- function(session, d, current) {
+  N <- detect_season_length(d)
+  if (is.na(N) || length(d) < 2 * N) return(invisible(NULL))
+  if (!is.null(current) && !is.na(current) && current == N) return(invisible(NULL))
+  updateNumericInput(session, "N", value = N)
+  kind <- c(`12` = "Monthly", `4` = "Quarterly", `52` = "Weekly", `7` = "Daily")[[as.character(N)]]
+  showNotification(paste0(kind, " data detected: season length N set to ", N, "."), type = "message")
+  invisible(N)
+}
+
 # An empty Excel file in the right format.
 write_input_template <- function(file) {
   writexl::write_xlsx(list(

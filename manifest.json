@@ -1305,7 +1305,7 @@
       "checksum": "97d726e137e6f3df8fa52f77508622f5"
     },
     "R/compare_methods.R": {
-      "checksum": "61bdb52a726b95cd6a434b46758ee7e3"
+      "checksum": "2c226f9ff32fb6c2a2cca7896664961d"
     },
     "R/compare_plans.R": {
       "checksum": "cdf20020135bbb6df7c54c01acc00aec"
@@ -1323,7 +1323,7 @@
       "checksum": "ffc828349e334c59d37cd8d07b758110"
     },
     "R/forecast_common.R": {
-      "checksum": "d2bb0dcd30f5c3f456db1c4ed33a593a"
+      "checksum": "cc837b1e227b1f997a51915444559271"
     },
     "R/help_texts.R": {
       "checksum": "d5e8d9dcd200977f991dbb7fef67f922"
@@ -1347,10 +1347,10 @@
       "checksum": "1efe976369a42ddd7bba637ea5fbc029"
     },
     "R/seasonal_decomposition.R": {
-      "checksum": "4205cfb727747e8065e23894453ea7f6"
+      "checksum": "0e1fee3f29e573c1501619d9c7da7dce"
     },
     "R/seasonal_factors.R": {
-      "checksum": "1ce30e8b5a5d9fdd8dea88cf08e03807"
+      "checksum": "7d7bdfdc89f5555da98c100b4fdae6a4"
     },
     "R/transportation_plan.R": {
       "checksum": "ec970f2ebe3f137161242fa37d6b19e6"
@@ -1359,7 +1359,7 @@
       "checksum": "52142680f69d096df882e322673a4771"
     },
     "R/winters.R": {
-      "checksum": "d47734e44125717d1b7518ef2aa07be3"
+      "checksum": "bfeaad6aa2760091b505a09dcd6f9724"
     },
     "app.R": {
       "checksum": "74d3d6d3efcf34ac0f3d405e328697f9"

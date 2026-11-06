@@ -130,6 +130,8 @@ compare_methods_ui <- function(id) {
 compare_methods_server <- function(id) {
   moduleServer(id, function(input, output, session) {
     demand <- series_input_server("data", example_column = "Seasonal")
+    # season length N from the period names / dates (monthly -> 12, quarterly -> 4, ...)
+    observeEvent(demand(), auto_season_length(session, demand(), input$N))
 
     run <- reactive({
       d <- demand()

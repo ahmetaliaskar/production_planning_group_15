@@ -48,6 +48,8 @@ seasonal_factors_ui <- function(id) {
 seasonal_factors_server <- function(id) {
   moduleServer(id, function(input, output, session) {
     demand <- series_input_server("data", example_column = "Seasonal")
+    # season length N from the period names / dates (monthly -> 12, quarterly -> 4, ...)
+    observeEvent(demand(), auto_season_length(session, demand(), input$N))
 
     # The whole calculation for data d and horizon h (also used for the hold-out test)
     compute <- function(d, h) {
