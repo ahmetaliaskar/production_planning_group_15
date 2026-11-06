@@ -318,14 +318,16 @@ fmt_num <- function(x, digits = 2) {
 #   goto:    tab to open when the card is clicked (Learning Curve), or
 #   modules: named list of groups -> c(button label = tab name); clicking the
 #            card shows / hides these buttons, a button opens its tab.
-home_card <- function(title, tag, items, goto = NULL, modules = NULL) {
+home_card <- function(title, tag, items, goto = NULL, modules = NULL,
+                      icon_name = "circle", theme = "theme-forecast") {
   module_buttons <- if (!is.null(modules)) div(class = "home-modules",
     lapply(names(modules), function(g) div(class = "module-group",
       div(class = "module-group-title", g),
       lapply(names(modules[[g]]), function(lbl)
         tags$button(type = "button", class = "module-btn", `data-goto` = modules[[g]][[lbl]], lbl)))))
-  column(4, div(class = paste("home-card clickable", if (!is.null(modules)) "expandable"),
+  column(4, div(class = paste("home-card clickable", theme, if (!is.null(modules)) "expandable"),
                 `data-goto` = goto,
+                div(class = "home-icon", icon(icon_name)),
                 div(class = "tag", tag),
                 h3(title, span(class = "card-arrow", if (is.null(modules)) "→" else "▾")),
                 tags$ul(lapply(items, tags$li)),
@@ -336,12 +338,18 @@ home_card <- function(title, tag, items, goto = NULL, modules = NULL) {
 home_ui <- function() {
   fluidPage(
     div(class = "hero",
+        div(class = "blob b1"), div(class = "blob b2"), div(class = "blob b3"),
         h1("Production Planning"),
-        p("Group 15 - interactive tools for forecasting and aggregate planning (Nahmias).")),
+        p("Group 15 - interactive tools for forecasting and aggregate planning (Nahmias)."),
+        div(class = "hero-chips",
+            span(class = "hero-chip", icon("chart-line"), " 12 forecasting methods"),
+            span(class = "hero-chip", icon("industry"), " 6 planning methods"),
+            span(class = "hero-chip", icon("file-excel"), " Excel in & out"),
+            span(class = "hero-chip", icon("flask"), " Hold-out testing"))),
     fluidRow(
       home_card("Learning Curve", "Week 1",
                 list("Time per unit for a chosen learning rate"),
-                goto = "Learning Curve"),
+                goto = "Learning Curve", icon_name = "graduation-cap", theme = "theme-learn"),
       home_card("Forecasting", "Assignment 2",
                 list("Moving average, weighted moving average, exponential smoothing",
                      "Seasonal factors and seasonal decomposition",
@@ -356,7 +364,8 @@ home_ui <- function() {
                   "Seasonal series" = c("Seasonal Decomposition" = "Seasonal Decomposition",
                                         "Winters' Method" = "Winters' Method"),
                   "Box-Jenkins" = c("AR" = "AR", "MA" = "MA", "ARMA" = "ARMA", "ARIMA" = "ARIMA"),
-                  "Comparison" = c("Compare Methods" = "Compare Methods"))),
+                  "Comparison" = c("Compare Methods" = "Compare Methods")),
+                icon_name = "chart-line", theme = "theme-forecast"),
       home_card("Aggregate Planning", "Assignment 3",
                 list("Chase, level and mixed plans",
                      "Linear programming and the transportation method",
@@ -369,10 +378,12 @@ home_ui <- function() {
                   "Optimization" = c("Linear Programming" = "Linear Programming",
                                      "Transportation" = "Transportation Method"),
                   "Disaggregation" = c("Square-Root Rule" = "Disaggregation (Square-Root Rule)"),
-                  "Comparison" = c("Compare Plans" = "Compare Plans")))
+                  "Comparison" = c("Compare Plans" = "Compare Plans")),
+                icon_name = "industry", theme = "theme-plan")
     ),
     fluidRow(
-      column(6, div(class = "home-card",
+      column(6, div(class = "home-card theme-forecast",
+        div(class = "home-icon", icon("circle-info")),
         h3("How to use"),
         tags$ul(
           tags$li("Choose a method from the menu above."),
@@ -380,7 +391,8 @@ home_ui <- function() {
           tags$li("Enter the parameters or let the app search for the best values."),
           tags$li("Aggregate Planning: enter the data once in 'Data and Costs'; every plan uses it.")
         ))),
-      column(6, div(class = "home-card",
+      column(6, div(class = "home-card theme-learn",
+        div(class = "home-icon", icon("users")),
         h3("Group members"),
         div(style = "margin-top: 8px;",
             span(class = "member", "Ahmet Ali Askar"),

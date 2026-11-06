@@ -93,7 +93,7 @@ lp_plan_solve <- function(ap, allow_ot, ot_limit, allow_idle, allow_sub, sub_lim
 lp_plan_ui <- function(id) {
   ns <- NS(id)
   ap_page(ns,
-    c("\\(\\min \\sum_t \\left(c_H H_t + c_F F_t + c_I I_t + c_R R_t + c_O O_t + c_U U_t + c_S S_t\\right)\\)", "Choose which options the model may use."),
+    c("\\(\\min \\sum_t \\big(c_H H_t + c_F F_t + c_I I_t\\)", "\\(\\qquad + c_R R_t + c_O O_t + c_U U_t + c_S S_t\\big)\\)", "Choose which options the model may use."),
     checkboxInput(ns("allow_ot"), "Allow overtime", value = FALSE),
     conditionalPanel("input.allow_ot", ns = ns,
       numericInput(ns("ot_limit"), "Overtime limit (% of regular capacity, 0 = no limit)",

@@ -1292,8 +1292,11 @@
     "R/aggregate_common.R": {
       "checksum": "2688bee49deeb4b2c249b68e0730a01d"
     },
+    "R/app_style.R": {
+      "checksum": "ea870671fa029f0ac5af92eac3c16ea9"
+    },
     "R/app_theme.R": {
-      "checksum": "a5c64f6096095f54c1d6a8af0fdf3f37"
+      "checksum": "4258f1e254b175dda1bd95b3b69d5ce6"
     },
     "R/box_jenkins.R": {
       "checksum": "d6081a403e4d9cc2b56069b3eec4336c"
@@ -1332,7 +1335,7 @@
       "checksum": "2b4c865204452b83b78b6650ad712fec"
     },
     "R/lp_plan.R": {
-      "checksum": "67cc333727a60161b22ae24ab1d745f6"
+      "checksum": "fe54b6e216769c004698b98ca29275dd"
     },
     "R/mixed_plan.R": {
       "checksum": "a3c228a5bb6f2cc47824a8d17e594e20"
@@ -1356,7 +1359,7 @@
       "checksum": "d47734e44125717d1b7518ef2aa07be3"
     },
     "app.R": {
-      "checksum": "10c9e0e546bc0f9b8d5d506820860abf"
+      "checksum": "d37900b502d980d29bcdd9454c55caf0"
     }
   },
   "users": null
