@@ -55,5 +55,6 @@ level_plan_server <- function(id, ap) {
     })
 
     render_ap_results(output, ap, result)
+    result      # returned so that the Disaggregation tab can use this plan
   })
 }

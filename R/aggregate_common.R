@@ -173,11 +173,22 @@ aggregate_data_server <- function(id) {
   })
 }
 
-# Stops a module with a friendly message when no data has been entered.
+# Stops a module with a friendly message when no data has been entered,
+# or shows the problem found in the 'Data and Costs' tab.
 ap_require <- function(ap) {
-  validate(need(tryCatch({ ap(); TRUE }, error = function(e) FALSE),
-                "First upload the demand data in the 'Data and Costs' tab."))
-  ap()
+  res <- tryCatch(ap(), error = function(e) e)
+  if (inherits(res, "error")) {
+    msg <- conditionMessage(res)
+    validate(need(FALSE,
+      if (nzchar(msg)) paste0("Problem in the 'Data and Costs' tab: ", msg)
+      else "First upload the demand data in the 'Data and Costs' tab."))
+  }
+  res
+}
+
+# Total units a plan makes available in each period (own production + subcontracting).
+ap_plan_production <- function(plan) {
+  plan[["Regular production"]] + plan$Overtime + plan$Subcontract
 }
 
 

@@ -77,5 +77,6 @@ mixed_plan_server <- function(id, ap) {
       r
     })
     render_ap_results(output, ap, result)
+    result      # returned so that the Disaggregation tab can use this plan
   })
 }

@@ -65,8 +65,12 @@ disaggregation_ui <- function(id) {
                                   "C, 2000, 600, 100, 5000", sep = "\n"),
                     rows = 6),
       radioButtons(ns("source"), "Aggregate production X of each period",
-                   choices = c("Type the values" = "manual",
-                               "Use the net demand from 'Data and Costs'" = "data")),
+                   choices = c("Take it from an aggregate plan" = "plan",
+                               "Type the values" = "manual")),
+      conditionalPanel("input.source == 'plan'", ns = ns,
+        selectInput(ns("plan"), "Aggregate plan", choices = NULL),
+        helpText("X = regular + overtime + subcontracted units of the plan.",
+                 "If the plan has a whole-worker version, that version is used.")),
       conditionalPanel("input.source == 'manual'", ns = ns,
         textInput(ns("X"), "X values (comma separated, one per period)",
                   value = "1000, 1200, 900"))
@@ -85,14 +89,19 @@ disaggregation_ui <- function(id) {
 # ---------------------------------------------------------------------
 # 3) CALCULATIONS (SERVER)
 # ---------------------------------------------------------------------
-disaggregation_server <- function(id, ap) {
+# `plans` is a named list of the plan modules' results (see app.R).
+disaggregation_server <- function(id, ap, plans = list()) {
   moduleServer(id, function(input, output, session) {
     families <- reactive(parse_families(input$families))
+    updateSelectInput(session, "plan", choices = names(plans))
 
     X <- reactive({
-      if (input$source == "data") {
+      if (input$source == "plan") {
+        req(input$plan %in% names(plans))
         a <- ap_require(ap)
-        setNames(pmax(a$Dnet, 0), a$periods)
+        r <- plans[[input$plan]]()
+        p <- r$plans[[length(r$plans)]]      # whole-worker version if there is one
+        setNames(pmax(ap_plan_production(p), 0), a$periods)
       } else {
         x <- as_number(trimws(strsplit(input$X, ",")[[1]]))
         validate(need(length(x) >= 1 && all(!is.na(x) & x >= 0),

@@ -55,12 +55,16 @@ server <- function(input, output, session) {
   # Aggregate planning: the data entered once in "Data and Costs" (ap)
   # is passed to every aggregate planning module
   ap <- aggregate_data_server("aggregate_data")
-  chase_plan_server("chase_plan", ap)
-  level_plan_server("level_plan", ap)
-  mixed_plan_server("mixed_plan", ap)
-  lp_plan_server("lp_plan", ap)
+  chase <- chase_plan_server("chase_plan", ap)
+  level <- level_plan_server("level_plan", ap)
+  mixed <- mixed_plan_server("mixed_plan", ap)
+  lp    <- lp_plan_server("lp_plan", ap)
   transportation_plan_server("transportation_plan", ap)
-  disaggregation_server("disaggregation", ap)
+  disaggregation_server("disaggregation", ap,
+                        plans = list("Zero-inventory (chase) plan" = chase,
+                                     "Constant-workforce (level) plan" = level,
+                                     "Mixed plan" = mixed,
+                                     "Linear programming plan" = lp))
 }
 
 shinyApp(ui, server)

@@ -23,31 +23,52 @@
 # ---------------------------------------------------------------------
 
 # Reads an .xlsx / .xls / .csv file into a data frame.
-# csv files written by a Turkish Excel use ";" as the separator and ","
-# as the decimal mark, so the separator is detected from the first line.
+# csv files saved by a Turkish Excel:
+#   - use ";" as the separator, "," as the decimal mark and "." for thousands
+#     (1.280 = one thousand two hundred eighty)
+#   - are often not UTF-8 but Windows-1254 (Turkish letters such as S, I with dots)
+# Both are detected automatically.
 read_data_file <- function(path, file_name) {
   ext <- tolower(tools::file_ext(file_name))
   if (ext %in% c("xlsx", "xls")) {
     return(as.data.frame(readxl::read_excel(path)))
   }
   if (ext %in% c("csv", "txt")) {
-    first_line <- readLines(path, n = 1, warn = FALSE)
+    raw <- readBin(path, "raw", file.info(path)$size)
+    raw <- raw[raw != as.raw(0)]
+    bom <- as.raw(c(0xEF, 0xBB, 0xBF))                   # byte order mark
+    if (length(raw) >= 3 && identical(raw[1:3], bom)) raw <- raw[-(1:3)]
+    text <- rawToChar(raw)
+    Encoding(text) <- "unknown"
+    text <- if (validUTF8(text)) text else iconv(text, "windows-1254", "UTF-8")
+    Encoding(text) <- "UTF-8"
+    first_line <- strsplit(text, "\r?\n")[[1]][1]
     n_semicolon <- lengths(regmatches(first_line, gregexpr(";", first_line)))
     n_comma     <- lengths(regmatches(first_line, gregexpr(",", first_line)))
     if (n_semicolon > n_comma) {
-      return(utils::read.csv(path, sep = ";", dec = ",", check.names = FALSE,
-                             fileEncoding = "UTF-8-BOM"))
+      df <- utils::read.csv(text = text, sep = ";", check.names = FALSE,
+                            colClasses = "character", encoding = "UTF-8")
+      df[] <- lapply(df, function(col) {
+        v <- trimws(col)
+        is_num <- grepl("^-?[0-9.]*(,[0-9]+)?$", v) & grepl("[0-9]", v)
+        if (all(is_num | v == "" | is.na(v))) {
+          suppressWarnings(as.numeric(sub(",", ".", gsub(".", "", v, fixed = TRUE))))
+        } else col
+      })
+      return(df)
     }
-    return(utils::read.csv(path, check.names = FALSE, fileEncoding = "UTF-8-BOM"))
+    return(utils::read.csv(text = text, check.names = FALSE, encoding = "UTF-8"))
   }
   stop("Please upload an .xlsx, .xls or .csv file.")
 }
 
-# Turns a column into numbers ("1.234,5" style text is also accepted).
+# Turns a column into numbers. Text such as "12,5" or "1.234,5" is accepted.
 as_number <- function(x) {
   if (is.numeric(x)) return(as.numeric(x))
   x <- trimws(as.character(x))
-  x <- ifelse(grepl(",", x) & !grepl("\\.", x), sub(",", ".", x), x)
+  both <- grepl(",", x) & grepl(".", x, fixed = TRUE)
+  x[both] <- gsub(".", "", x[both], fixed = TRUE)    # 1.234,5 -> 1234,5
+  x <- sub(",", ".", x)                               # 12,5    -> 12.5
   suppressWarnings(as.numeric(x))
 }
 
