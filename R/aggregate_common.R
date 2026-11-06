@@ -312,7 +312,8 @@ ap_display_plan <- function(plan) {
   plan
 }
 
-render_ap_results <- function(output, ap, result) {
+# `extra_sheets`: optional function returning a named list of extra Excel sheets.
+render_ap_results <- function(output, ap, result, extra_sheets = NULL) {
   output$headline <- renderText(result()$title)
 
   output$kpis <- renderUI({
@@ -390,7 +391,9 @@ render_ap_results <- function(output, ap, result) {
         p
       })
       names(plan_sheets) <- substr(gsub("[^A-Za-z0-9 ]", "", names(plan_sheets)), 1, 31)
-      writexl::write_xlsx(c(list(Costs = cost_sheet), plan_sheets), file)
+      sheets <- c(list(Costs = cost_sheet), plan_sheets)
+      if (!is.null(extra_sheets)) sheets <- c(sheets, extra_sheets())
+      writexl::write_xlsx(sheets, file)
     })
 
   output$plan_table_2 <- renderTable({

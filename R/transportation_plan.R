@@ -236,7 +236,36 @@ transportation_plan_server <- function(id, ap) {
     })
     output$lc_table <- renderTable({ s <- solved(); transportation_show(s$tp, s$best, s$a) })
 
-    render_ap_results(output, ap, result)
+    # Excel sheets with the transportation tableaux
+    tableau_sheets <- function() {
+      s <- solved()
+      C <- s$tp$cost
+      cost <- data.frame(Source = s$tp$src$label, Capacity = round(s$tp$src$capacity, 3),
+                         check.names = FALSE)
+      for (j in seq_along(s$a$periods)) cost[[s$a$periods[j]]] <- C[, j]          # empty = not allowed
+      cost[["Unused"]] <- s$tp$src$unused_cost
+      alloc <- function(X) {
+        out <- data.frame(Source = s$tp$src$label, check.names = FALSE)
+        for (j in seq_along(s$a$periods)) out[[s$a$periods[j]]] <- round(X[, j], 3)
+        out[["Unused"]] <- round(X[, ncol(X)], 3)
+        out[["Capacity"]] <- round(s$tp$src$capacity, 3)
+        out <- rbind(out, cbind(data.frame(Source = "Demand", check.names = FALSE),
+                                as.data.frame(as.list(setNames(round(c(s$tp$demand, s$tp$unused), 3),
+                                                               c(s$a$periods, "Unused"))), check.names = FALSE),
+                                data.frame(Capacity = NA)))
+        out
+      }
+      totals <- data.frame(
+        Solution = c("North-west corner", "Cheapest cell first"),
+        "Transportation cost" = round(c(transportation_cost(s$tp, s$nw), transportation_cost(s$tp, s$best)), 2),
+        check.names = FALSE)
+      list(`Cell costs` = cost,
+           `NW corner allocation` = alloc(s$nw),
+           `Cheapest cell allocation` = alloc(s$best),
+           `Transportation costs` = totals)
+    }
+
+    render_ap_results(output, ap, result, extra_sheets = tableau_sheets)
     result      # returned so that the Compare Plans tab can use this plan
   })
 }

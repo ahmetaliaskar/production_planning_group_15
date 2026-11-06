@@ -1290,7 +1290,7 @@
   },
   "files": {
     "R/aggregate_common.R": {
-      "checksum": "2688bee49deeb4b2c249b68e0730a01d"
+      "checksum": "bdcd878be1533d1b96da89f965054726"
     },
     "R/app_style.R": {
       "checksum": "0a26fb97b221163f1ebd79d4ef896f13"
@@ -1350,7 +1350,7 @@
       "checksum": "1ce30e8b5a5d9fdd8dea88cf08e03807"
     },
     "R/transportation_plan.R": {
-      "checksum": "20506d907c8fcc19a33090e825b1bf3c"
+      "checksum": "ec970f2ebe3f137161242fa37d6b19e6"
     },
     "R/weighted_moving_average.R": {
       "checksum": "52142680f69d096df882e322673a4771"
