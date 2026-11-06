@@ -167,6 +167,9 @@ app_nav_js <- function() {
           .forEach(function (e) { e.classList.remove('show'); });
         window.scrollTo({ top: 0, behavior: 'smooth' });
       }
+      if (window.Shiny && Shiny.addCustomMessageHandler) {
+        Shiny.addCustomMessageHandler('open-tab', function (name) { openTab(name); });
+      }
       document.addEventListener('click', function (e) {
         var btn = e.target.closest && e.target.closest('.module-btn[data-goto]');
         if (btn) { e.stopPropagation(); openTab(btn.getAttribute('data-goto')); return; }

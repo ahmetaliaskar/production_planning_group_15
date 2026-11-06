@@ -204,6 +204,17 @@ series_input_server <- function(id, example_column = "Seasonal") {
       preferred(NULL)
       data(lib()[[input$dataset]])
     })
+    # "Send to a method" from the Data Library (only if this tab is the target)
+    send <- library_send(session)
+    my_prefix <- session$ns("")                       # e.g. "holt-data-"
+    observeEvent(send(), {
+      s <- send()
+      req(s$name %in% names(lib()), startsWith(my_prefix, paste0(s$target, "-")))
+      preferred(s$column)
+      updateSelectInput(session, "dataset", selected = s$name)
+      data(NULL); data(lib()[[s$name]])
+    }, ignoreInit = TRUE)
+
     # "Use in every forecasting tab" from the Data Library
     observeEvent(broadcast(), {
       b <- broadcast()

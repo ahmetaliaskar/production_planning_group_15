@@ -53,6 +53,9 @@ app_style_css <- function() {
       background: transparent !important; border-radius: 4px !important; }
     .btn-outline-primary:hover, .example-btn:hover { background: var(--accent) !important; color: #fff !important; }
     .btn-outline-secondary { border-radius: 4px !important; }
+    .send-btn { background: var(--accent) !important; border-color: var(--accent) !important; color: #fff !important;
+      border-radius: 4px !important; margin-top: 2px; }
+    .send-btn:hover { filter: brightness(1.08); }
     .form-control, .selectize-input { border-radius: 4px !important; border-color: #d6d2c9 !important; }
     .form-control:focus, .selectize-input.focus { border-color: var(--accent) !important;
       box-shadow: 0 0 0 3px var(--accent-soft) !important; }

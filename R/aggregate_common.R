@@ -130,6 +130,14 @@ aggregate_data_server <- function(id) {
       req(input$dataset, input$dataset %in% names(lib()))
       data_rv(lib()[[input$dataset]])
     })
+    # "Send to a method" from the Data Library
+    send <- library_send(session)
+    observeEvent(send(), {
+      s <- send()
+      req(s$target == "aggregate_data", s$name %in% names(lib()))
+      updateSelectInput(session, "dataset", selected = s$name)
+      data_rv(NULL); data_rv(lib()[[s$name]])
+    }, ignoreInit = TRUE)
     data <- reactive({ req(data_rv()); data_rv() })
 
     output$template <- downloadHandler(

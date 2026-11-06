@@ -14,6 +14,8 @@ help_texts <- list(
   files = "Select one or more Excel / csv files at once (Cmd or Shift + click). Every sheet becomes a dataset.",
   folder = "Choose a folder: all .xlsx, .xls and .csv files in it are loaded; other files are skipped.",
   selected = "The dataset shown in the preview, and the one used by the buttons below.",
+  target = "The method that should receive the chosen dataset. 'Send and open' loads it there and opens that tab.",
+  send_column = "The column the method should forecast.",
 
   # --- forecasting ---------------------------------------------------
   mode = "Enter the parameters yourself, or let the app try many values and keep the ones with the smallest error.",

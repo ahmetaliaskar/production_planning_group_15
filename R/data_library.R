@@ -34,6 +34,21 @@ data_library <- function(session) {
   session$userData$library
 }
 
+# Tabs that can receive a dataset: tab title (as in the menu) = module id.
+library_targets <- c(
+  "Moving Average" = "moving_average", "Weighted Moving Average" = "weighted_moving_average",
+  "Simple Exponential Smoothing" = "exponential_smoothing",
+  "Seasonal Factors (Quick and Dirty)" = "seasonal_factors", "Holt's Method" = "holt",
+  "Seasonal Decomposition" = "seasonal_decomposition", "Winters' Method" = "winters",
+  "AR" = "bj_ar", "MA" = "bj_ma", "ARMA" = "bj_arma", "ARIMA" = "bj_arima",
+  "Compare Methods" = "compare_methods", "Data and Costs" = "aggregate_data")
+
+# "Send to a method" signal: list(target = module id, name, column, time).
+library_send <- function(session) {
+  if (is.null(session$userData$send)) session$userData$send <- reactiveVal(NULL)
+  session$userData$send
+}
+
 # "Use in every forecasting tab" signal: list(name, time).
 library_broadcast <- function(session) {
   if (is.null(session$userData$broadcast)) session$userData$broadcast <- reactiveVal(NULL)
@@ -88,6 +103,14 @@ data_library_ui <- function(id) {
                "Other file types in a folder are skipped."),
       hr(),
       selectInput(ns("selected"), "Dataset", choices = NULL),
+      h4("Send to a method"),
+      selectInput(ns("target"), "Method",
+                  choices = list(Forecasting = as.list(library_targets[library_targets != "aggregate_data"]),
+                                 `Aggregate planning` = list(`Data and Costs` = "aggregate_data"))),
+      conditionalPanel("input.target != 'aggregate_data'", ns = ns,
+        selectInput(ns("send_column"), "Series (demand column)", choices = NULL)),
+      actionButton(ns("send"), "Send and open", icon = icon("arrow-right"), class = "btn-primary btn-sm send-btn"),
+      hr(),
       div(class = "data-actions",
           actionButton(ns("use_all"), "Use in every forecasting tab", icon = icon("share-nodes"),
                        class = "btn-sm btn-outline-primary"),
@@ -130,6 +153,21 @@ data_library_server <- function(id) {
       nms <- names(lib())
       sel <- if (isTruthy(input$selected) && input$selected %in% nms) input$selected else tail(nms, 1)
       updateSelectInput(session, "selected", choices = nms, selected = sel)
+    })
+
+    # numeric columns of the chosen dataset for "Send to a method"
+    observeEvent(list(input$selected, lib()), {
+      req(input$selected, input$selected %in% names(lib()))
+      cols <- label_column_candidates(lib()[[input$selected]])$series
+      updateSelectInput(session, "send_column", choices = cols, selected = tail(cols, 1))
+    })
+    observeEvent(input$send, {
+      req(input$selected, input$selected %in% names(lib()), input$target)
+      library_send(session)(list(target = input$target, name = input$selected,
+                                 column = input$send_column, time = Sys.time()))
+      title <- names(library_targets)[library_targets == input$target]
+      session$sendCustomMessage("open-tab", title)
+      showNotification(paste0("'", input$selected, "' sent to ", title, "."), type = "message")
     })
 
     observeEvent(input$remove, {
