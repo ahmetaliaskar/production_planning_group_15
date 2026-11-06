@@ -1311,13 +1311,13 @@
       "checksum": "cdf20020135bbb6df7c54c01acc00aec"
     },
     "R/data_library.R": {
-      "checksum": "797957c3045a7f064afb4c8148353682"
+      "checksum": "4ebf1f6c94f8c2839ccc08264111a1ad"
     },
     "R/disaggregation.R": {
       "checksum": "80bfdd7cd0e12a0dbb670ac2d44d2154"
     },
     "R/example_data.R": {
-      "checksum": "467b51d1e67efd08b91245ae7aeeb336"
+      "checksum": "e79716db173df1f1f26a566e3459aec4"
     },
     "R/exponential_smoothing.R": {
       "checksum": "ffc828349e334c59d37cd8d07b758110"

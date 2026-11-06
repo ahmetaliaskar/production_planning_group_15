@@ -27,9 +27,10 @@ read_workbook <- function(path, file_name) {
   }
 }
 
-# The library of this browser session (created on first use).
+# The library of this browser session (created on first use, with the
+# built-in example datasets already in it).
 data_library <- function(session) {
-  if (is.null(session$userData$library)) session$userData$library <- reactiveVal(list())
+  if (is.null(session$userData$library)) session$userData$library <- reactiveVal(example_library())
   session$userData$library
 }
 
@@ -91,7 +92,10 @@ data_library_ui <- function(id) {
           actionButton(ns("use_all"), "Use in every forecasting tab", icon = icon("share-nodes"),
                        class = "btn-sm btn-outline-primary"),
           actionButton(ns("remove"), "Remove", icon = icon("trash"), class = "btn-sm btn-outline-secondary")),
-      actionLink(ns("clear"), "Remove all datasets")
+      div(class = "data-actions",
+          actionLink(ns("clear"), "Remove all datasets"),
+          actionLink(ns("restore"), "Restore the example datasets")),
+      helpText("Datasets whose name starts with 'Example' are built into the app.")
     ),
     mainPanel(
       div(class = "result-title", "Data library"),
@@ -133,6 +137,10 @@ data_library_server <- function(id) {
       cur <- lib(); cur[[input$selected]] <- NULL; lib(cur)
     })
     observeEvent(input$clear, lib(list()))
+    observeEvent(input$restore, {
+      cur <- lib(); ex <- example_library()
+      lib(c(ex, cur[setdiff(names(cur), names(ex))]))
+    })
     observeEvent(input$use_all, {
       req(input$selected)
       broadcast(list(name = input$selected, time = Sys.time()))
@@ -148,7 +156,8 @@ data_library_server <- function(id) {
       }
       div(class = "kpi-row",
           kpi_tile("Datasets", length(l)),
-          kpi_tile("Files", length(unique(sub(" > .*$", "", names(l))))),
+          kpi_tile("Your datasets", sum(!startsWith(names(l), "Example >")),
+                   paste(sum(startsWith(names(l), "Example >")), "examples built in")),
           kpi_tile("Rows in total", fmt_num(sum(vapply(l, nrow, numeric(1))), 0)))
     })
 
