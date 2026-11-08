@@ -35,8 +35,10 @@ app_style_css <- function() {
       --font: 'IBM Plex Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
       --mono: 'IBM Plex Mono', SFMono-Regular, Menlo, Consolas, monospace;
       --radius: 4px; --radius-sm: 3px;
-      --soft: rgba(var(--accent-rgb), .10); --soft-2: rgba(var(--accent-rgb), .18); --glow: rgba(var(--accent-rgb), .35);
-      /* HUD corner marks, drawn with backgrounds so no extra elements are needed */
+    }
+    /* HUD corner marks, drawn with backgrounds so no extra elements are needed;
+       declared on the panels themselves so they take the section color */
+    .well, .home-card, .empty-state, .hero {
       --corners:
         linear-gradient(var(--accent), var(--accent)) left top / 12px 1px no-repeat,
         linear-gradient(var(--accent), var(--accent)) left top / 1px 12px no-repeat,
@@ -51,6 +53,9 @@ app_style_css <- function() {
     .theme-forecast { --accent: #22d3ee; --accent-rgb: 34, 211, 238; }
     .theme-plan     { --accent: #fbbf24; --accent-rgb: 251, 191, 36; }
     .theme-learn    { --accent: #a78bfa; --accent-rgb: 167, 139, 250; }
+    /* tints follow the section color, so they are computed on each section element */
+    :root, .theme-forecast, .theme-plan, .theme-learn {
+      --soft: rgba(var(--accent-rgb), .10); --soft-2: rgba(var(--accent-rgb), .18); --glow: rgba(var(--accent-rgb), .35); }
 
     html, body { font-family: var(--font) !important; }
     body { color: var(--ink) !important; font-size: 14px; line-height: 1.5; -webkit-font-smoothing: antialiased;
@@ -259,7 +264,7 @@ app_style_css <- function() {
       white-space: nowrap; padding: 9px 12px !important; }
     table.shiny-table td { padding: 7px 12px !important; border-top: none !important; color: var(--ink) !important;
       background: transparent !important; border-bottom: 1px solid var(--line-2) !important;
-      font-family: var(--mono); font-size: .78rem; font-variant-numeric: tabular-nums; }
+      font-family: var(--mono); font-size: .78rem; font-variant-numeric: tabular-nums; white-space: nowrap; }
     table.shiny-table tbody tr:last-child td { border-bottom: none !important; }
     table.shiny-table tbody tr:nth-child(even) { background: rgba(255, 255, 255, .015) !important; }
     table.shiny-table tbody tr:hover { background: var(--soft) !important; }
