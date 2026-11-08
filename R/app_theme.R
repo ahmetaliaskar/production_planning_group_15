@@ -332,10 +332,10 @@ fmt_num <- function(x, digits = 2) {
 #   modules: named list of groups -> c(button label = tab name); clicking the
 #            tile opens a panel below the tiles with these buttons.
 home_modules <- function() list(
-  list(key = "learning", glyph = "<svg viewBox=\"0 0 32 32\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.4\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M6 5v21h21\"/><path d=\"M9.5 8c1.6 7 5 12.5 14.5 13.5\"/><circle cx=\"9.8\" cy=\"9\" r=\"1.6\" fill=\"currentColor\"/><circle cx=\"13.6\" cy=\"16.2\" r=\"1.6\" fill=\"currentColor\"/><circle cx=\"20\" cy=\"20.6\" r=\"1.6\" fill=\"currentColor\"/></svg>", title = "Learning Curve", tag = "Week 1",
+  list(key = "learning", glyph = "<svg viewBox=\"0 0 32 32\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.4\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M6 5v21h21\"/><path d=\"M9.5 8c1.6 7 5 12.5 14.5 13.5\"/><circle cx=\"9.8\" cy=\"9\" r=\"1.6\" fill=\"currentColor\"/><circle cx=\"13.6\" cy=\"16.2\" r=\"1.6\" fill=\"currentColor\"/><circle cx=\"20\" cy=\"20.6\" r=\"1.6\" fill=\"currentColor\"/></svg>", title = "Learning Curve",
        items = list("Time per unit for a chosen learning rate"),
        goto = "Learning Curve", icon_name = "graduation-cap", theme = "theme-learn"),
-  list(key = "forecasting", glyph = "<svg viewBox=\"0 0 32 32\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.4\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M4 22l4.5-5 4 3 5.5-8\"/><path d=\"M18 12l3.5-2.5 3 1.5 3.5-4\" stroke-dasharray=\"0.1 4.2\" stroke-width=\"3\"/><circle cx=\"18\" cy=\"12\" r=\"2.2\" fill=\"currentColor\"/><path d=\"M4 27h24\" opacity=\".55\"/></svg>", title = "Forecasting", tag = "Assignment 2",
+  list(key = "forecasting", glyph = "<svg viewBox=\"0 0 32 32\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.4\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M4 22l4.5-5 4 3 5.5-8\"/><path d=\"M18 12l3.5-2.5 3 1.5 3.5-4\" stroke-dasharray=\"0.1 4.2\" stroke-width=\"3\"/><circle cx=\"18\" cy=\"12\" r=\"2.2\" fill=\"currentColor\"/><path d=\"M4 27h24\" opacity=\".55\"/></svg>", title = "Forecasting",
        items = list("Moving average, weighted moving average, exponential smoothing",
                     "Seasonal factors and seasonal decomposition",
                     "Holt's and Winters' methods",
@@ -351,7 +351,7 @@ home_modules <- function() list(
          "Box-Jenkins" = c("AR" = "AR", "MA" = "MA", "ARMA" = "ARMA", "ARIMA" = "ARIMA"),
          "Comparison" = c("Compare Methods" = "Compare Methods")),
        icon_name = "chart-line", theme = "theme-forecast"),
-  list(key = "aggregate", glyph = "<svg viewBox=\"0 0 32 32\" fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\"><path d=\"M7 26v-9M13 26V11M19 26v-8M25 26V8\" stroke-width=\"3.6\"/><path d=\"M4 14.5h24\" stroke-width=\"1.8\" stroke-dasharray=\"2.5 2.5\" opacity=\".85\"/></svg>", title = "Aggregate Planning", tag = "Assignment 3",
+  list(key = "aggregate", glyph = "<svg viewBox=\"0 0 32 32\" fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\"><path d=\"M7 26v-9M13 26V11M19 26v-8M25 26V8\" stroke-width=\"3.6\"/><path d=\"M4 14.5h24\" stroke-width=\"1.8\" stroke-dasharray=\"2.5 2.5\" opacity=\".85\"/></svg>", title = "Aggregate Planning",
        items = list("Chase, level and mixed plans",
                     "Linear programming and the transportation method",
                     "Disaggregation with the square-root rule"),
@@ -377,7 +377,6 @@ home_tile <- function(m) {
       title = paste(c(unlist(m$items), hint), collapse = "\n"),
       div(class = "app-icon", if (!is.null(m$glyph)) HTML(m$glyph) else icon(m$icon_name)),
       h3(m$title),
-      div(class = "tag", m$tag),
       span(class = "visually-hidden", paste(c(unlist(m$items), hint), collapse = ". ")))
 }
 
@@ -386,7 +385,7 @@ module_branch <- function(m) {
   if (is.null(m$modules)) return(NULL)
   div(class = paste("module-branch", m$theme), `data-key` = m$key,
       div(class = "branch-head",
-          div(div(class = "tag", m$tag), h3(m$title)),
+          h3(m$title),
           tags$ul(class = "branch-items", lapply(m$items, tags$li))),
       div(class = "home-modules",
           lapply(names(m$modules), function(g) div(class = "module-group",
@@ -409,26 +408,49 @@ home_ui <- function() {
             span(class = "hero-chip", icon("flask"), " Hold-out testing"))),
     div(class = "module-hub",
         div(class = "module-grid", lapply(mods, home_tile)),
-        lapply(mods, module_branch)),
-    fluidRow(
-      column(6, div(class = "home-card theme-forecast",
-        div(class = "home-icon", icon("circle-info")),
-        h3("How to use"),
-        tags$ul(
-          tags$li("Choose a method from the menu on the left (or click a card above)."),
-          tags$li("Have many files? Load them all (or a whole folder) once in 'Data Library', then pick a dataset in any tab."),
-          tags$li("Upload an Excel (.xlsx) or .csv file and pick the data column."),
-          tags$li("Enter the parameters or let the app search for the best values."),
-          tags$li("Aggregate Planning: enter the data once in 'Data and Costs'; every plan uses it.")
-        ))),
-      column(6, div(class = "home-card theme-learn",
-        div(class = "home-icon", icon("users")),
-        h3("Group members"),
-        div(style = "margin-top: 8px;",
-            span(class = "member", "Ahmet Ali Askar"),
-            span(class = "member", "Eren Yalçınkaya"),
-            span(class = "member", "Bulut Sakallıoğlu"),
-            span(class = "member", "Bilal İskender"))))
-    )
+        lapply(mods, module_branch))
   )
+}
+
+
+
+# ---------------------------------------------------------------------
+# 5) HOW TO USE (English / Turkish) AND GROUP MEMBERS
+# ---------------------------------------------------------------------
+# Each text is given in both languages; the language switch shows one of them
+# (the choice is kept in the browser, English by default).
+how_to_ui <- function() {
+  steps <- list(
+    en = c("Choose a method from the menu on the left (or click a module on the Home page).",
+           "Have many files? Load them all (or a whole folder) once in 'Data Library', then pick a dataset in any tab.",
+           "Upload an Excel (.xlsx) or .csv file and pick the data column.",
+           "Enter the parameters or let the app search for the best values.",
+           "Aggregate Planning: enter the data once in 'Data and Costs'; every plan uses it."),
+    tr = c("Soldaki men\u00fcden bir y\u00f6ntem se\u00e7in (ya da ana sayfadaki bir mod\u00fcle t\u0131klay\u0131n).",
+           "\u00c7ok say\u0131da dosyan\u0131z m\u0131 var? Hepsini (ya da b\u00fct\u00fcn bir klas\u00f6r\u00fc) 'Data Library' sekmesinde bir kez y\u00fckleyin, sonra her sekmede bir veri seti se\u00e7in.",
+           "Bir Excel (.xlsx) ya da .csv dosyas\u0131 y\u00fckleyin ve veri s\u00fctununu se\u00e7in.",
+           "Parametreleri girin ya da uygulaman\u0131n en iyi de\u011ferleri aramas\u0131n\u0131 sa\u011flay\u0131n.",
+           "Toplu Planlama (Aggregate Planning): veriyi 'Data and Costs' sekmesinde bir kez girin; b\u00fct\u00fcn planlar bu veriyi kullan\u0131r."))
+  fluidPage(div(class = "info-page",
+    div(class = "info-head",
+        h2(class = "info-title",
+           span(`data-lang` = "en", "How to use"),
+           span(`data-lang` = "tr", "Nas\u0131l kullan\u0131l\u0131r")),
+        div(class = "lang-switch", role = "group", `aria-label` = "Language",
+            tags$button(type = "button", class = "lang-btn", `data-set-lang` = "en", "English"),
+            tags$button(type = "button", class = "lang-btn", `data-set-lang` = "tr", "T\u00fcrk\u00e7e"))),
+    tags$ol(class = "steps", `data-lang` = "en", lang = "en", lapply(steps$en, tags$li)),
+    tags$ol(class = "steps", `data-lang` = "tr", lang = "tr", lapply(steps$tr, tags$li))))
+}
+
+members_ui <- function() {
+  members <- c("Ahmet Ali Askar", "Eren Yal\u00e7\u0131nkaya", "Bulut Sakall\u0131o\u011flu", "Bilal \u0130skender")
+  initials <- vapply(strsplit(members, " "), function(w) paste0(substr(w[1], 1, 1), substr(w[length(w)], 1, 1)), "")
+  fluidPage(div(class = "info-page",
+    div(class = "info-head", h2(class = "info-title", "Group members")),
+    div(class = "member-grid",
+        lapply(seq_along(members), function(i)
+          div(class = paste0("member-card m", i),
+              div(class = "avatar", `aria-hidden` = "true", initials[i]),
+              div(class = "member-name", members[i]))))))
 }

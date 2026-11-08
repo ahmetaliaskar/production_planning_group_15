@@ -372,6 +372,39 @@ app_style_css <- function() {
     .member { background: rgba(var(--accent-rgb), .08) !important; border: 1px solid rgba(var(--accent-rgb), .25) !important; border-radius: 999px !important;
       font-weight: 500 !important; font-size: .875rem; color: var(--ink) !important; padding: 5px 14px !important; }
 
+    /* ---------- How to use / Group members pages ---------- */
+    .info-page { max-width: 880px; }
+    .info-head { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-bottom: 20px; }
+    .info-title { font-family: var(--display) !important; font-weight: 800 !important; font-size: 1.75rem !important;
+      letter-spacing: -.025em; color: var(--ink) !important; margin: 0 !important; display: flex; align-items: center; gap: 12px; }
+    .info-title::before { content: ''; width: 6px; height: 1.1em; border-radius: 3px; background: linear-gradient(180deg, var(--accent-2), var(--accent)); }
+    /* language: English unless Turkish is chosen */
+    :root:not([data-lang=tr]) [data-lang=tr], :root[data-lang=tr] [data-lang=en] { display: none !important; }
+    .lang-switch { display: inline-flex; padding: 3px; gap: 2px; background: var(--card); border: 1px solid var(--line);
+      border-radius: 999px; box-shadow: var(--shadow); }
+    .lang-btn { border: none; background: transparent; color: var(--muted); font: 600 .8rem/1 var(--font); padding: 8px 14px;
+      border-radius: 999px; cursor: pointer; transition: background-color .15s, color .15s; }
+    .lang-btn:hover { color: var(--ink); }
+    :root:not([data-lang=tr]) .lang-btn[data-set-lang=en], :root[data-lang=tr] .lang-btn[data-set-lang=tr] {
+      background: linear-gradient(135deg, var(--accent-2), var(--accent)); color: #fff; }
+    .steps { list-style: none; counter-reset: step; margin: 0; padding: 0; display: grid; gap: 10px; }
+    .steps li { counter-increment: step; position: relative; display: flex; align-items: flex-start; gap: 14px; padding: 14px 18px;
+      background: var(--card); border: 1px solid var(--line); border-radius: var(--r-lg); box-shadow: var(--shadow);
+      color: var(--ink-2); font-size: .95rem; line-height: 1.5; }
+    .steps li::before { content: counter(step); flex: none; width: 28px; height: 28px; border-radius: 9px; display: flex;
+      align-items: center; justify-content: center; font: 700 .85rem/1 var(--display); color: #fff;
+      background: linear-gradient(135deg, var(--accent-2), var(--accent)); }
+    .member-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 14px; }
+    .member-card { display: flex; flex-direction: column; align-items: center; text-align: center; gap: 12px; padding: 24px 16px 20px;
+      background: var(--card); border: 1px solid var(--line); border-radius: 16px; box-shadow: var(--shadow); }
+    .member-card .avatar { width: 64px; height: 64px; border-radius: 50%; display: flex; align-items: center; justify-content: center;
+      font: 800 1.2rem/1 var(--display); color: #fff; letter-spacing: .02em; }
+    .member-card.m1 .avatar { background: linear-gradient(135deg, #818cf8, #4f46e5); }
+    .member-card.m2 .avatar { background: linear-gradient(135deg, #67e8f9, #0e7490); }
+    .member-card.m3 .avatar { background: linear-gradient(135deg, #fbbf24, #ea580c); }
+    .member-card.m4 .avatar { background: linear-gradient(135deg, #e879f9, #7c3aed); }
+    .member-card .member-name { font-family: var(--display); font-weight: 700; font-size: .98rem; color: var(--ink); }
+
     @keyframes branchIn { from { transform: translateY(-4px); } to { transform: none; } }
     @keyframes busyRun  { 0% { left: -30%; } 100% { left: 100%; } }
 
@@ -394,14 +427,14 @@ app_style_css <- function() {
         font-size: .84rem; font-weight: 500; transition: background-color .15s, color .15s; }
       .navbar .nav-link:hover { background: rgba(255, 255, 255, .05); }
       .navbar .nav-link.active { background: linear-gradient(90deg, rgba(129, 140, 248, .32), rgba(129, 140, 248, .06)) !important; box-shadow: inset 3px 0 0 #a5b4fc !important; color: #fff !important; }
-      .navbar .navbar-nav > li:nth-child(3) > .nav-link.active { background: linear-gradient(90deg, rgba(192, 132, 252, .32), rgba(192, 132, 252, .06)) !important; box-shadow: inset 3px 0 0 #c084fc !important; }
+      .navbar .navbar-nav > li:has(> a[data-value=\"Learning Curve\"]) > .nav-link.active { background: linear-gradient(90deg, rgba(192, 132, 252, .32), rgba(192, 132, 252, .06)) !important; box-shadow: inset 3px 0 0 #c084fc !important; }
       .navbar .dropdown { margin-top: 16px; }
       .navbar .dropdown-toggle { font-size: .68rem; text-transform: uppercase; letter-spacing: .12em; font-weight: 600;
         color: var(--side-head) !important; cursor: pointer; background: transparent !important; box-shadow: none !important;
         padding: 6px 12px !important; gap: 9px; }
       .navbar .dropdown-toggle::before { content: ''; width: 8px; height: 8px; flex: none; border-radius: 3px; background: #818cf8; }
-      .navbar .navbar-nav > li:nth-child(4) .dropdown-toggle::before { background: linear-gradient(135deg, #67e8f9, #0891b2); }
-      .navbar .navbar-nav > li:nth-child(5) .dropdown-toggle::before { background: linear-gradient(135deg, #fbbf24, #ea580c); }
+      .navbar .navbar-nav > li.dropdown:has(a[data-value=\"Moving Average\"]) .dropdown-toggle::before { background: linear-gradient(135deg, #67e8f9, #0891b2); }
+      .navbar .navbar-nav > li.dropdown:has(a[data-value=\"Data and Costs\"]) .dropdown-toggle::before { background: linear-gradient(135deg, #fbbf24, #ea580c); }
       .navbar .dropdown-toggle:hover { color: #c7d0dc !important; background: transparent !important; }
       .navbar .dropdown-toggle::after { margin-left: auto; transition: transform .2s; opacity: .7; }
       .navbar .dropdown.nav-collapsed .dropdown-toggle::after { transform: rotate(-90deg); }
@@ -415,8 +448,8 @@ app_style_css <- function() {
         white-space: normal; line-height: 1.35; transition: background-color .15s, color .15s; }
       .navbar .dropdown-item:hover { background: rgba(255, 255, 255, .05) !important; color: #fff !important; }
       .navbar .dropdown-item.active { color: #fff !important; font-weight: 500; background: var(--side-2) !important; }
-      .navbar .navbar-nav > li:nth-child(4) .dropdown-item.active { box-shadow: inset 3px 0 0 #22d3ee; background: linear-gradient(90deg, rgba(34, 211, 238, .26), rgba(34, 211, 238, .04)) !important; }
-      .navbar .navbar-nav > li:nth-child(5) .dropdown-item.active { box-shadow: inset 3px 0 0 #fbbf24; background: linear-gradient(90deg, rgba(251, 146, 60, .26), rgba(251, 146, 60, .04)) !important; }
+      .navbar .navbar-nav > li.dropdown:has(a[data-value=\"Moving Average\"]) .dropdown-item.active { box-shadow: inset 3px 0 0 #22d3ee; background: linear-gradient(90deg, rgba(34, 211, 238, .26), rgba(34, 211, 238, .04)) !important; }
+      .navbar .navbar-nav > li.dropdown:has(a[data-value=\"Data and Costs\"]) .dropdown-item.active { box-shadow: inset 3px 0 0 #fbbf24; background: linear-gradient(90deg, rgba(251, 146, 60, .26), rgba(251, 146, 60, .04)) !important; }
       .container-fluid > .tab-content { padding: 28px 30px 48px !important; }
       html.shiny-busy body::before { margin-left: 252px; }
     }
@@ -477,6 +510,16 @@ app_style_js <- function() {
         b.addEventListener('click', function () { setTheme(root.getAttribute('data-theme') === 'dark' ? 'light' : 'dark'); });
         document.body.appendChild(b);
       }
+
+      // ---- language of the How to use page: English by default, the choice is kept ----
+      try { if (localStorage.getItem('pp-lang') === 'tr') root.setAttribute('data-lang', 'tr'); } catch (e) {}
+      document.addEventListener('click', function (e) {
+        var b = e.target.closest && e.target.closest('.lang-btn[data-set-lang]');
+        if (!b) return;
+        var l = b.getAttribute('data-set-lang');
+        if (l === 'tr') root.setAttribute('data-lang', 'tr'); else root.removeAttribute('data-lang');
+        try { localStorage.setItem('pp-lang', l); } catch (e2) {}
+      });
 
       // ---- section colors ----
       function themeTabs() {

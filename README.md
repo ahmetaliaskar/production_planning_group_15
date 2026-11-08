@@ -15,7 +15,9 @@ Shiny application for the Production Planning course (Nahmias).
 
 | Menu | Tabs |
 |---|---|
-| Home | Overview and group members |
+| Home | Overview and the modules (click a module to see its methods) |
+| How to use | Short guide in English and Turkish (language switch) |
+| Group members | The members of Group 15 |
 | Data Library | Load many files or a folder once; preview the datasets |
 | Learning Curve | Learning curve |
 | Forecasting (Assignment 2) | Moving Average, Weighted Moving Average, Simple Exponential Smoothing, Seasonal Factors (Quick and Dirty), Holt's Method, Seasonal Decomposition, Winters' Method, AR, MA, ARMA, ARIMA, **Compare Methods** |
