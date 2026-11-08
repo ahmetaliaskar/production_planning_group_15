@@ -73,12 +73,12 @@ learning_curve_server <- function(id) {
       plot_frame(range(cv$u), yr, xlab = "Unit", ylab = "Time per unit")
       lines(cv$u, cv$time, col = app_colors$series[1], lwd = 2.5)
       dbl <- 2^(0:floor(log2(max(cv$u))))
-      points(dbl, cv$time[dbl], pch = 21, bg = app_colors$series[2], col = "white", cex = 1.4)
+      points(dbl, cv$time[dbl], pch = 21, bg = app_colors$series[2], col = app_colors$plot_bg, cex = 1.4)
       text(dbl, cv$time[dbl], fmt_num(cv$time[dbl], 1), pos = 3, cex = 0.75,
            col = app_colors$ink_2, xpd = TRUE)
       plot_legend(c("Time per unit", "Doubling points (1, 2, 4, 8, ...)"),
                   c(app_colors$series[1], app_colors$series[2]), pch = c(NA, 16), lty = c(1, NA))
-    }, bg = "white", res = 96)
+    }, bg = app_colors$plot_bg, res = 96)
 
     output$download <- downloadHandler(
       filename = function() paste0("learning_curve_", round(100 * input$L), ".xlsx"),

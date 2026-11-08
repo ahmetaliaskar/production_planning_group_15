@@ -12,26 +12,32 @@
 # 1) COLORS, THEME AND CSS
 # ---------------------------------------------------------------------
 app_colors <- list(
-  surface   = "#ffffff",
-  page      = "#f3f4f6",
-  ink       = "#1e2329",   # main text
-  ink_2     = "#4b5562",   # secondary text, axes
-  muted     = "#7a828e",
-  grid      = "#eceef1",
-  border    = "#dde1e6",
-  navy      = "#0f1d30",   # navigation bar
-  # chart series: restrained, print-like colors that stay apart from each other
-  series    = c("#1f5fa8", "#d0712b", "#2e8a67", "#b8902a",
-                "#8a5fa8", "#5b6b7d", "#3d96b8", "#b8475a")
+  surface   = "#0f1829",
+  page      = "#080e1a",
+  ink       = "#e6edf7",   # main text
+  ink_2     = "#b4c0d3",   # secondary text, axes, actual demand line
+  muted     = "#7d8ba3",
+  grid      = "#1c2840",
+  border    = "#22314b",
+  navy      = "#050a14",   # navigation bar
+  # charts are drawn on the dark panel color
+  plot_bg     = "#0f1829",
+  bar_dim     = "#2a4366",   # bars that are not highlighted
+  band_future = "#13233a",   # shaded future area
+  band_test   = "#122c2a",   # shaded hold-out area
+  # chart series: bright, distinct and readable on the dark panels
+  series    = c("#38bdf8", "#f5a524", "#34d399", "#a78bfa",
+                "#f472b6", "#94a3b8", "#2dd4bf", "#f87171")
 )
 
 app_theme <- function() {
   bslib::bs_theme(
     version = 5,
     bg = app_colors$page, fg = app_colors$ink,
-    primary = "#1f4e8c", secondary = app_colors$ink_2,
-    base_font = bslib::font_collection("Inter", "-apple-system", "BlinkMacSystemFont", "Segoe UI",
+    primary = "#38bdf8", secondary = "#7d8ba3",
+    base_font = bslib::font_collection("IBM Plex Sans", "-apple-system", "BlinkMacSystemFont", "Segoe UI",
                                        "Roboto", "Helvetica Neue", "Arial", "sans-serif"),
+    code_font = bslib::font_collection("IBM Plex Mono", "SFMono-Regular", "Menlo", "Consolas", "monospace"),
     "border-radius" = "0.25rem",
     "font-size-base" = "0.875rem"
   )
@@ -253,7 +259,7 @@ app_dropzone_js <- function() {
 # Common settings: light axes, horizontal numbers, no box.
 plot_setup <- function(mar = c(4, 4.6, 2.6, 1)) {
   par(mar = mar, las = 1, bty = "n", family = "sans",
-      col.axis = app_colors$muted, col.lab = app_colors$ink_2, fg = "#c6ccd4",
+      col.axis = app_colors$muted, col.lab = app_colors$ink_2, fg = "#34445f",
       cex.axis = 0.8, cex.lab = 0.85, mgp = c(2.8, 0.55, 0), tcl = -0.2,
       font.main = 2, cex.main = 0.95, col.main = app_colors$ink, font.lab = 1)
 }
@@ -276,7 +282,7 @@ plot_legend <- function(labels, cols, pch = NA, lty = 1, lwd = 2, horiz = TRUE, 
          lty = lty, lwd = lwd, horiz = horiz, cex = 0.82,
          ncol = if (is.null(ncol)) 1 else ncol,
          bty = if (horiz || !is.null(ncol)) "n" else "o", box.col = NA,
-         bg = adjustcolor("white", 0.9),
+         bg = adjustcolor(app_colors$plot_bg, 0.92),
          text.col = app_colors$ink_2, x.intersp = 0.6, y.intersp = 1.1,
          seg.len = 1.6, xpd = TRUE)
 }

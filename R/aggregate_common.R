@@ -246,11 +246,11 @@ aggregate_data_server <- function(id) {
       bp <- barplot(a$Dnet, plot = FALSE)
       plot_frame(range(bp) + c(-0.7, 0.7), yr, ylab = "Units", xaxt = "n",
                  main = "Net demand by period")
-      barplot(a$Dnet, names.arg = a$periods, col = app_colors$series[1], border = "white",
+      barplot(a$Dnet, names.arg = a$periods, col = app_colors$series[1], border = app_colors$plot_bg,
               add = TRUE, axes = FALSE, width = 1, space = 0.2, cex.names = 0.85,
               col.axis = app_colors$ink_2)
       text(bp, a$Dnet, fmt_num(a$Dnet, 0), pos = 3, cex = 0.78, col = app_colors$ink_2, xpd = TRUE)
-    }, bg = "white", res = 96)
+    }, bg = app_colors$plot_bg, res = 96)
 
     ap
   })
@@ -404,12 +404,12 @@ render_ap_results <- function(output, ap, result, extra_sheets = NULL) {
     for (i in seq_along(r$plans)) {
       y <- c(0, r$plans[[i]][["Cum. production"]])
       lines(0:Tn, y, col = cols[i], lwd = 2, lty = if (i == 1) 1 else 2)
-      points(0:Tn, y, pch = 21, bg = cols[i], col = "white", cex = 1.2, lwd = 1.2)
+      points(0:Tn, y, pch = 21, bg = cols[i], col = app_colors$plot_bg, cex = 1.2, lwd = 1.2)
     }
     plot_legend(c("Cumulative net demand", paste("Cumulative production -", names(r$plans))),
                 c(app_colors$ink_2, cols[seq_along(r$plans)]),
                 lty = c(1, 1, 2)[seq_len(length(r$plans) + 1)], horiz = FALSE)
-  }, bg = "white", res = 96)
+  }, bg = app_colors$plot_bg, res = 96)
 
   output$cost_table <- renderTable({
     r <- result(); a <- ap()

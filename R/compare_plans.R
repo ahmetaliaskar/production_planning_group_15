@@ -95,7 +95,7 @@ compare_plans_server <- function(id, ap, plans) {
       tab <- table()
       tab <- tab[rev(seq_len(nrow(tab))), ]           # cheapest at the top
       v <- tab$Total
-      cols <- ifelse(seq_along(v) == length(v), app_colors$series[1], "#b7d3f6")
+      cols <- ifelse(seq_along(v) == length(v), app_colors$series[1], app_colors$bar_dim)
       plot_setup(mar = c(3.5, 15, 2.6, 5))
       plot(NA, xlim = c(0, max(v) * 1.18), ylim = c(0.5, length(v) + 0.5),
            axes = FALSE, xlab = "", ylab = "")
@@ -106,7 +106,7 @@ compare_plans_server <- function(id, ap, plans) {
       rect(0, seq_along(v) - 0.35, v, seq_along(v) + 0.35, col = cols, border = NA)
       axis(2, at = seq_along(v), labels = tab$Plan, lwd = 0, las = 1, cex.axis = 0.82)
       text(v, seq_along(v), fmt_num(v, 0), pos = 4, cex = 0.78, col = app_colors$ink_2, xpd = TRUE)
-    }, bg = "white", res = 96)
+    }, bg = app_colors$plot_bg, res = 96)
 
     output$table <- renderTable({
       tab <- table()

@@ -155,9 +155,9 @@ disaggregation_server <- function(id, ap, plans = list()) {
       bp <- barplot(t(Y), plot = FALSE)
       plot_frame(range(bp) + c(-0.7, 0.7), yr, ylab = "Units", xaxt = "n",
                  main = "Aggregate production split among families")
-      barplot(t(Y), names.arg = names(X()), col = cols, border = "white", add = TRUE,
+      barplot(t(Y), names.arg = names(X()), col = cols, border = app_colors$plot_bg, add = TRUE,
               axes = FALSE, cex.names = 0.85)
       plot_legend(colnames(Y), cols, pch = 15, lty = NA, lwd = NA)
-    }, bg = "white", res = 96)
+    }, bg = app_colors$plot_bg, res = 96)
   })
 }

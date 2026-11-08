@@ -201,7 +201,7 @@ compare_methods_server <- function(id) {
       tab <- tab[!is.na(tab[[k]]), ]
       tab <- tab[rev(seq_len(nrow(tab))), ]           # best at the top
       v <- tab[[k]]
-      cols <- ifelse(seq_along(v) == length(v), app_colors$series[1], "#b7d3f6")
+      cols <- ifelse(seq_along(v) == length(v), app_colors$series[1], app_colors$bar_dim)
       plot_setup(mar = c(3.5, 15, 2.6, 4))
       plot(NA, xlim = c(0, max(v) * 1.15), ylim = c(0.5, length(v) + 0.5),
            axes = FALSE, xlab = "", ylab = "")
@@ -211,7 +211,7 @@ compare_methods_server <- function(id) {
       rect(0, seq_along(v) - 0.35, v, seq_along(v) + 0.35, col = cols, border = NA)
       axis(2, at = seq_along(v), labels = tab$Method, lwd = 0, las = 1, cex.axis = 0.82)
       text(v, seq_along(v), fmt_num(v), pos = 4, cex = 0.78, col = app_colors$ink_2, xpd = TRUE)
-    }, bg = "white", res = 96)
+    }, bg = app_colors$plot_bg, res = 96)
 
     output$table <- renderTable({
       tab <- table()
@@ -241,10 +241,10 @@ compare_methods_server <- function(id) {
       lines(1:n, d, col = app_colors$ink_2, lwd = 2); points(1:n, d, pch = 16, col = app_colors$ink_2, cex = 0.9)
       lines(1:n, m$fitted, col = app_colors$series[1], lwd = 2, lty = 2)
       lines(c(n, (n + 1):(n + h)), c(m$fitted[n], m$future), col = app_colors$series[2], lwd = 2.5)
-      points((n + 1):(n + h), m$future, pch = 21, bg = app_colors$series[2], col = "white", cex = 1.5)
+      points((n + 1):(n + h), m$future, pch = 21, bg = app_colors$series[2], col = app_colors$plot_bg, cex = 1.5)
       plot_legend(c("Actual demand", paste("One-step forecast -", m$method), "Future forecast"),
                   c(app_colors$ink_2, app_colors$series[1], app_colors$series[2]), lty = c(1, 2, 1))
-    }, bg = "white", res = 96)
+    }, bg = app_colors$plot_bg, res = 96)
 
     output$download <- downloadHandler(
       filename = function() "forecasting_methods_comparison.xlsx",

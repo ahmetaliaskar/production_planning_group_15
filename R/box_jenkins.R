@@ -196,7 +196,7 @@ box_jenkins_server <- function(id, type = "ARIMA") {
                     ci.col = app_colors$series[2])
         title(paste("PACF -", nm), adj = 0, line = 1)
       }
-    }, bg = "white", res = 96)
+    }, bg = app_colors$plot_bg, res = 96)
 
     output$coef_table <- renderTable({
       fit <- model()$fit

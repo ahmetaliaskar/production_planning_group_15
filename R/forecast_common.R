@@ -535,10 +535,10 @@ render_forecast_results <- function(output, result) {
     plot_frame(c(1, n + h), yr, xlab = "Period", ylab = "Demand", xaxt = "n")
     axis_periods(r$d, h)
     big <- diff(yr)
-    rect(n + 0.5, yr[1] - big, n + h + 1, yr[2] + big, col = "#f4f8fd", border = NA)   # future
+    rect(n + 0.5, yr[1] - big, n + h + 1, yr[2] + big, col = app_colors$band_future, border = NA)   # future
     if (!is.null(r$test$forecast)) {
       rect(min(r$test$periods) - 0.5, yr[1] - big, n + 0.5, yr[2] + big,
-           col = "#edf8f3", border = NA)                                                # hold-out
+           col = app_colors$band_test, border = NA)                                                # hold-out
     }
     abline(h = pretty(yr), col = cols$grid)
     if (!is.null(r$future_lower)) {
@@ -549,19 +549,19 @@ render_forecast_results <- function(output, result) {
     points(1:n, r$d, pch = 16, col = cols$ink_2, cex = 0.9)
     lines(1:n, r$fitted, col = cols$series[1], lwd = 2, lty = 2)
     lines(c(n, (n + 1):(n + h)), c(r$fitted[n], r$future), col = cols$series[2], lwd = 2.5)
-    points((n + 1):(n + h), r$future, pch = 21, bg = cols$series[2], col = "white",
+    points((n + 1):(n + h), r$future, pch = 21, bg = cols$series[2], col = app_colors$plot_bg,
            cex = 1.5, lwd = 1.5)
     labs <- c("Actual demand", "One-step forecast", "Future forecast")
     lc <- c(cols$ink_2, cols$series[1], cols$series[2]); lt <- c(1, 2, 1)
     if (!is.null(r$test$forecast)) {
       lines(r$test$periods, r$test$forecast, col = cols$series[3], lwd = 2.5)
-      points(r$test$periods, r$test$forecast, pch = 21, bg = cols$series[3], col = "white", cex = 1.3)
+      points(r$test$periods, r$test$forecast, pch = 21, bg = cols$series[3], col = app_colors$plot_bg, cex = 1.3)
       text(min(r$test$periods) - 0.4, yr[1], "Test", adj = c(0, 0), cex = 0.8, col = cols$ink_2)
       labs <- c(labs, "Hold-out forecast"); lc <- c(lc, cols$series[3]); lt <- c(lt, 1)
     }
     text(n + 0.6, yr[1], "Forecast", adj = c(0, 0), cex = 0.8, col = cols$ink_2)
     plot_legend(labs, lc, lty = lt, ncol = if (length(labs) > 3) 2 else NULL)
-  }, bg = "white", res = 96)
+  }, bg = app_colors$plot_bg, res = 96)
 
   output$test_note <- renderText({
     t <- result()$test
