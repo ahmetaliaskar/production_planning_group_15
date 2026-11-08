@@ -13,26 +13,27 @@
 # ---------------------------------------------------------------------
 app_colors <- list(
   surface   = "#ffffff",
-  page      = "#f6f6f4",
-  ink       = "#1d1d1b",   # main text
-  ink_2     = "#52514e",   # secondary text, axes
-  muted     = "#8a8984",
-  grid      = "#ebeae6",
-  border    = "#e2e1dc",
-  navy      = "#14365c",   # navigation bar
-  series    = c("#2a78d6", "#eb6834", "#1baf7a", "#eda100",
-                "#e87ba4", "#008300", "#6250d6", "#e34948")
+  page      = "#f3f4f6",
+  ink       = "#1e2329",   # main text
+  ink_2     = "#4b5562",   # secondary text, axes
+  muted     = "#7a828e",
+  grid      = "#eceef1",
+  border    = "#dde1e6",
+  navy      = "#0f1d30",   # navigation bar
+  # chart series: restrained, print-like colors that stay apart from each other
+  series    = c("#1f5fa8", "#d0712b", "#2e8a67", "#b8902a",
+                "#8a5fa8", "#5b6b7d", "#3d96b8", "#b8475a")
 )
 
 app_theme <- function() {
   bslib::bs_theme(
     version = 5,
     bg = app_colors$page, fg = app_colors$ink,
-    primary = app_colors$series[1], secondary = app_colors$ink_2,
-    base_font = bslib::font_collection("-apple-system", "BlinkMacSystemFont", "Segoe UI",
+    primary = "#1f4e8c", secondary = app_colors$ink_2,
+    base_font = bslib::font_collection("Inter", "-apple-system", "BlinkMacSystemFont", "Segoe UI",
                                        "Roboto", "Helvetica Neue", "Arial", "sans-serif"),
-    "border-radius" = "0.6rem",
-    "font-size-base" = "0.95rem"
+    "border-radius" = "0.25rem",
+    "font-size-base" = "0.875rem"
   )
 }
 
@@ -252,16 +253,16 @@ app_dropzone_js <- function() {
 # Common settings: light axes, horizontal numbers, no box.
 plot_setup <- function(mar = c(4, 4.6, 2.6, 1)) {
   par(mar = mar, las = 1, bty = "n", family = "sans",
-      col.axis = app_colors$ink_2, col.lab = app_colors$ink_2, fg = app_colors$border,
-      cex.axis = 0.85, cex.lab = 0.9, mgp = c(2.8, 0.6, 0), tcl = -0.2,
-      font.main = 2, cex.main = 1, col.main = app_colors$ink)
+      col.axis = app_colors$muted, col.lab = app_colors$ink_2, fg = "#c6ccd4",
+      cex.axis = 0.8, cex.lab = 0.85, mgp = c(2.8, 0.55, 0), tcl = -0.2,
+      font.main = 2, cex.main = 0.95, col.main = app_colors$ink, font.lab = 1)
 }
 
 # Empty plot with light horizontal grid lines.
 plot_frame <- function(xlim, ylim, xlab = "", ylab = "", main = "", xaxt = "s") {
   plot(NA, xlim = xlim, ylim = ylim, xlab = xlab, ylab = ylab, axes = FALSE)
   if (nzchar(main)) title(main = main, adj = 0, line = 1.6)
-  abline(h = pretty(ylim), col = app_colors$grid, lwd = 1)
+  abline(h = pretty(ylim), col = app_colors$grid, lwd = 0.8)
   axis(2, at = pretty(ylim), lwd = 0, labels = format(pretty(ylim), big.mark = ",", scientific = FALSE))
   if (xaxt != "n") axis(1, lwd = 0, lwd.ticks = 1)
   invisible(NULL)
