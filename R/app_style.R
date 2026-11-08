@@ -113,7 +113,7 @@ app_style_css <- function() {
 
     /* ---------- page layout ---------- */
     .container-fluid > .tab-content { padding: 20px 12px 40px !important; }
-    .tab-content > .tab-pane.active { animation: paneIn .28s ease-out; }
+    .tab-content > .tab-pane.active { animation: none; }
 
     /* ---------- input panel (left) ---------- */
     .well { background: var(--corners), var(--card) !important; border: 1px solid var(--line) !important;
@@ -351,8 +351,7 @@ app_style_css <- function() {
     .member::before { content: ''; display: inline-block; width: 6px; height: 6px; border-radius: 50%; margin-right: 8px;
       vertical-align: middle; background: var(--accent); box-shadow: 0 0 8px var(--glow); }
 
-    @keyframes fadeUp  { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
-    @keyframes paneIn  { from { opacity: 0; } to { opacity: 1; } }
+    @keyframes fadeUp  { from { transform: translateY(6px); } to { transform: none; } }
     @keyframes busyRun { 0% { left: -35%; } 100% { left: 100%; } }
     @keyframes sweep   { to { transform: rotate(360deg); } }
 
