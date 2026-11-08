@@ -89,6 +89,7 @@ app_style_css <- function() {
     .col-sm-8 > h4::before, .col-sm-8 h4::before, .table-head h4::before {
       content: ''; width: 6px; height: 6px; flex: none; background: var(--accent); transform: rotate(45deg);
       box-shadow: 0 0 8px var(--glow); }
+    .result-title:empty, .result-title:has(> .shiny-text-output:empty), .result-title:has(> .shiny-html-output:empty),
     .col-sm-8 h4:empty, .table-head h4:empty, .col-sm-8 h4:has(> .shiny-text-output:empty) { display: none !important; }
     .col-sm-8 > h4::after { content: ''; flex: 1; height: 1px; background: linear-gradient(90deg, var(--line-strong), transparent); }
     .table-head { margin: 28px 0 10px !important; align-items: center !important; }
