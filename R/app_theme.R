@@ -12,33 +12,34 @@
 # 1) COLORS, THEME AND CSS
 # ---------------------------------------------------------------------
 app_colors <- list(
-  surface   = "#0f1829",
-  page      = "#080e1a",
-  ink       = "#e6edf7",   # main text
-  ink_2     = "#b4c0d3",   # secondary text, axes, actual demand line
-  muted     = "#7d8ba3",
-  grid      = "#1c2840",
-  border    = "#22314b",
-  navy      = "#050a14",   # navigation bar
-  # charts are drawn on the dark panel color
-  plot_bg     = "#0f1829",
-  bar_dim     = "#2a4366",   # bars that are not highlighted
-  band_future = "#13233a",   # shaded future area
-  band_test   = "#122c2a",   # shaded hold-out area
-  # chart series: bright, distinct and readable on the dark panels
-  series    = c("#38bdf8", "#f5a524", "#34d399", "#a78bfa",
-                "#f472b6", "#94a3b8", "#2dd4bf", "#f87171")
+  surface   = "#ffffff",
+  page      = "#f4f6f9",
+  # charts are drawn on a transparent background so they sit on the panel color
+  # of both the light and the dark theme; text and lines use mid tones that
+  # stay readable on either
+  ink       = "#5a6576",   # chart titles
+  ink_2     = "#6b7686",   # axis labels, actual demand line
+  muted     = "#7d8796",   # axis numbers
+  grid      = "#94a3b833",
+  border    = "#94a3b855",
+  navy      = "#0f1b2d",   # navigation bar
+  plot_bg     = "transparent",
+  bar_dim     = "#3b7de85c",   # bars that are not highlighted
+  band_future = "#3b7de814",   # shaded future area
+  band_test   = "#14a37f17",   # shaded hold-out area
+  series    = c("#3b7de8", "#e8862a", "#14a37f", "#8b5cf6",
+                "#e0507f", "#64748b", "#0ea5c0", "#dc5050")
 )
 
 app_theme <- function() {
   bslib::bs_theme(
     version = 5,
-    bg = app_colors$page, fg = app_colors$ink,
-    primary = "#38bdf8", secondary = "#7d8ba3",
+    bg = app_colors$page, fg = "#0f172a",
+    primary = "#2563eb", secondary = "#64748b",
     base_font = bslib::font_collection("IBM Plex Sans", "-apple-system", "BlinkMacSystemFont", "Segoe UI",
                                        "Roboto", "Helvetica Neue", "Arial", "sans-serif"),
-    code_font = bslib::font_collection("IBM Plex Mono", "SFMono-Regular", "Menlo", "Consolas", "monospace"),
-    "border-radius" = "0.25rem",
+    heading_font = bslib::font_collection("Manrope", "IBM Plex Sans", "Segoe UI", "sans-serif"),
+    "border-radius" = "0.375rem",
     "font-size-base" = "0.875rem"
   )
 }
@@ -259,7 +260,7 @@ app_dropzone_js <- function() {
 # Common settings: light axes, horizontal numbers, no box.
 plot_setup <- function(mar = c(4, 4.6, 2.6, 1)) {
   par(mar = mar, las = 1, bty = "n", family = "sans",
-      col.axis = app_colors$muted, col.lab = app_colors$ink_2, fg = "#34445f",
+      col.axis = app_colors$muted, col.lab = app_colors$ink_2, fg = "#94a3b866",
       cex.axis = 0.8, cex.lab = 0.85, mgp = c(2.8, 0.55, 0), tcl = -0.2,
       font.main = 2, cex.main = 0.95, col.main = app_colors$ink, font.lab = 1)
 }
@@ -325,29 +326,79 @@ fmt_num <- function(x, digits = 2) {
 # ---------------------------------------------------------------------
 # 4) HOME PAGE
 # ---------------------------------------------------------------------
-# A card on the Home page.
-#   goto:    tab to open when the card is clicked (Learning Curve), or
+# The modules shown on the Home page. To add a module, add one entry here:
+#   key:     short id (used to pair a tile with its branch panel)
+#   goto:    tab to open when the tile is clicked (a module without methods), or
 #   modules: named list of groups -> c(button label = tab name); clicking the
-#            card shows / hides these buttons, a button opens its tab.
-home_card <- function(title, tag, items, goto = NULL, modules = NULL,
-                      icon_name = "circle", theme = "theme-forecast") {
-  module_buttons <- if (!is.null(modules)) div(class = "home-modules",
-    lapply(names(modules), function(g) div(class = "module-group",
-      div(class = "module-group-title", g),
-      lapply(names(modules[[g]]), function(lbl)
-        tags$button(type = "button", class = "module-btn", `data-goto` = modules[[g]][[lbl]], lbl)))))
-  # full width: each module is one row of the module list, so new modules simply add rows
-  column(12, div(class = paste("home-card clickable", theme, if (!is.null(modules)) "expandable"),
-                `data-goto` = goto,
-                div(class = "home-icon", icon(icon_name)),
-                div(class = "tag", tag),
-                h3(title, span(class = "card-arrow", if (is.null(modules)) "→" else "▾")),
-                tags$ul(lapply(items, tags$li)),
-                div(class = "card-hint", if (is.null(modules)) "Click to open" else "Click to see the methods"),
-                module_buttons))
+#            tile opens a panel below the tiles with these buttons.
+home_modules <- function() list(
+  list(key = "learning", title = "Learning Curve", tag = "Week 1",
+       items = list("Time per unit for a chosen learning rate"),
+       goto = "Learning Curve", icon_name = "graduation-cap", theme = "theme-learn"),
+  list(key = "forecasting", title = "Forecasting", tag = "Assignment 2",
+       items = list("Moving average, weighted moving average, exponential smoothing",
+                    "Seasonal factors and seasonal decomposition",
+                    "Holt's and Winters' methods",
+                    "Box-Jenkins: AR, MA, ARMA, ARIMA"),
+       modules = list(
+         "Stationary series" = c("Moving Average" = "Moving Average",
+                                 "Weighted MA" = "Weighted Moving Average",
+                                 "Exponential Smoothing" = "Simple Exponential Smoothing",
+                                 "Seasonal Factors" = "Seasonal Factors (Quick and Dirty)"),
+         "Trend series" = c("Holt's Method" = "Holt's Method"),
+         "Seasonal series" = c("Seasonal Decomposition" = "Seasonal Decomposition",
+                               "Winters' Method" = "Winters' Method"),
+         "Box-Jenkins" = c("AR" = "AR", "MA" = "MA", "ARMA" = "ARMA", "ARIMA" = "ARIMA"),
+         "Comparison" = c("Compare Methods" = "Compare Methods")),
+       icon_name = "chart-line", theme = "theme-forecast"),
+  list(key = "aggregate", title = "Aggregate Planning", tag = "Assignment 3",
+       items = list("Chase, level and mixed plans",
+                    "Linear programming and the transportation method",
+                    "Disaggregation with the square-root rule"),
+       modules = list(
+         "Start here" = c("Data and Costs" = "Data and Costs"),
+         "Heuristic plans" = c("Chase Plan" = "Zero-Inventory (Chase) Plan",
+                               "Level Plan" = "Constant-Workforce (Level) Plan",
+                               "Mixed Plan" = "Mixed Plan"),
+         "Optimization" = c("Linear Programming" = "Linear Programming",
+                            "Transportation" = "Transportation Method"),
+         "Disaggregation" = c("Square-Root Rule" = "Disaggregation (Square-Root Rule)"),
+         "Comparison" = c("Compare Plans" = "Compare Plans")),
+       icon_name = "industry", theme = "theme-plan")
+)
+
+# Small tile of one module. A tile with methods opens / closes its branch panel;
+# a tile without methods opens its tab directly.
+home_tile <- function(m) {
+  has_methods <- !is.null(m$modules)
+  div(class = paste("home-card module-tile clickable", m$theme, if (has_methods) "expandable"),
+      `data-goto` = m$goto, `data-key` = m$key, tabindex = "0", role = "button",
+      div(class = "tile-top",
+          div(class = "home-icon", icon(m$icon_name)),
+          span(class = "card-arrow", if (has_methods) "\u25be" else "\u2192")),
+      div(class = "tag", m$tag),
+      h3(m$title),
+      if (!has_methods) div(class = "tile-sub", lapply(m$items, div)),
+      div(class = "card-hint", if (has_methods) "Click to see the methods" else "Click to open"))
+}
+
+# Panel that branches out below the tiles when a module tile is opened.
+module_branch <- function(m) {
+  if (is.null(m$modules)) return(NULL)
+  div(class = paste("module-branch", m$theme), `data-key` = m$key,
+      div(class = "branch-head",
+          div(div(class = "tag", m$tag), h3(m$title)),
+          tags$ul(class = "branch-items", lapply(m$items, tags$li))),
+      div(class = "home-modules",
+          lapply(names(m$modules), function(g) div(class = "module-group",
+            div(class = "module-group-title", g),
+            div(class = "module-group-buttons",
+                lapply(names(m$modules[[g]]), function(lbl)
+                  tags$button(type = "button", class = "module-btn", `data-goto` = m$modules[[g]][[lbl]], lbl)))))))
 }
 
 home_ui <- function() {
+  mods <- home_modules()
   fluidPage(
     div(class = "hero",
         h1("Production Planning"),
@@ -357,41 +408,9 @@ home_ui <- function() {
             span(class = "hero-chip", icon("industry"), " 6 planning methods"),
             span(class = "hero-chip", icon("file-excel"), " Excel in & out"),
             span(class = "hero-chip", icon("flask"), " Hold-out testing"))),
-    fluidRow(
-      home_card("Learning Curve", "Week 1",
-                list("Time per unit for a chosen learning rate"),
-                goto = "Learning Curve", icon_name = "graduation-cap", theme = "theme-learn"),
-      home_card("Forecasting", "Assignment 2",
-                list("Moving average, weighted moving average, exponential smoothing",
-                     "Seasonal factors and seasonal decomposition",
-                     "Holt's and Winters' methods",
-                     "Box-Jenkins: AR, MA, ARMA, ARIMA"),
-                modules = list(
-                  "Stationary series" = c("Moving Average" = "Moving Average",
-                                          "Weighted MA" = "Weighted Moving Average",
-                                          "Exponential Smoothing" = "Simple Exponential Smoothing",
-                                          "Seasonal Factors" = "Seasonal Factors (Quick and Dirty)"),
-                  "Trend series" = c("Holt's Method" = "Holt's Method"),
-                  "Seasonal series" = c("Seasonal Decomposition" = "Seasonal Decomposition",
-                                        "Winters' Method" = "Winters' Method"),
-                  "Box-Jenkins" = c("AR" = "AR", "MA" = "MA", "ARMA" = "ARMA", "ARIMA" = "ARIMA"),
-                  "Comparison" = c("Compare Methods" = "Compare Methods")),
-                icon_name = "chart-line", theme = "theme-forecast"),
-      home_card("Aggregate Planning", "Assignment 3",
-                list("Chase, level and mixed plans",
-                     "Linear programming and the transportation method",
-                     "Disaggregation with the square-root rule"),
-                modules = list(
-                  "Start here" = c("Data and Costs" = "Data and Costs"),
-                  "Heuristic plans" = c("Chase Plan" = "Zero-Inventory (Chase) Plan",
-                                        "Level Plan" = "Constant-Workforce (Level) Plan",
-                                        "Mixed Plan" = "Mixed Plan"),
-                  "Optimization" = c("Linear Programming" = "Linear Programming",
-                                     "Transportation" = "Transportation Method"),
-                  "Disaggregation" = c("Square-Root Rule" = "Disaggregation (Square-Root Rule)"),
-                  "Comparison" = c("Compare Plans" = "Compare Plans")),
-                icon_name = "industry", theme = "theme-plan")
-    ),
+    div(class = "module-hub",
+        div(class = "module-grid", lapply(mods, home_tile)),
+        lapply(mods, module_branch)),
     fluidRow(
       column(6, div(class = "home-card theme-forecast",
         div(class = "home-icon", icon("circle-info")),
