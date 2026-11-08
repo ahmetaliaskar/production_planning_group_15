@@ -336,7 +336,8 @@ home_card <- function(title, tag, items, goto = NULL, modules = NULL,
       div(class = "module-group-title", g),
       lapply(names(modules[[g]]), function(lbl)
         tags$button(type = "button", class = "module-btn", `data-goto` = modules[[g]][[lbl]], lbl)))))
-  column(4, div(class = paste("home-card clickable", theme, if (!is.null(modules)) "expandable"),
+  # full width: each module is one row of the module list, so new modules simply add rows
+  column(12, div(class = paste("home-card clickable", theme, if (!is.null(modules)) "expandable"),
                 `data-goto` = goto,
                 div(class = "home-icon", icon(icon_name)),
                 div(class = "tag", tag),
