@@ -304,17 +304,13 @@ app_style_css <- function() {
         linear-gradient(90deg, rgba(56, 189, 248, .06) 1px, transparent 1px) 0 0 / 24px 24px,
         var(--card) !important;
       box-shadow: 0 20px 50px rgba(0, 0, 0, .35); animation: none !important; }
-    .hero::after { content: ''; display: block !important; position: absolute; right: 38px; top: 50%; width: 170px; height: 170px;
-      margin-top: -85px; border-radius: 50%; border: 1px solid rgba(56, 189, 248, .35);
-      background: radial-gradient(circle, transparent 54%, rgba(56, 189, 248, .14) 55%, transparent 56%),
-                  radial-gradient(circle, transparent 28%, rgba(56, 189, 248, .10) 29%, transparent 30%),
-                  conic-gradient(from 0deg, transparent 0deg, transparent 250deg, rgba(56, 189, 248, .38) 358deg, rgba(56, 189, 248, .7) 360deg);
-      box-shadow: 0 0 40px rgba(56, 189, 248, .15), inset 0 0 30px rgba(56, 189, 248, .10);
-      animation: sweep 6s linear infinite; }
+    /* right side of the hero: a small demand / forecast / production-plan sketch (decoration only) */
+    .hero::after { content: ''; display: block !important; position: absolute; right: 30px; top: 22px; width: 300px; height: 142px; pointer-events: none; opacity: .95;
+      background: url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 380 180'%3E%3Cline x1='0' x2='380' y1='18' y2='18' stroke='%2394a3b8' stroke-opacity='.12'/%3E%3Cline x1='0' x2='380' y1='62' y2='62' stroke='%2394a3b8' stroke-opacity='.12'/%3E%3Cline x1='0' x2='380' y1='106' y2='106' stroke='%2394a3b8' stroke-opacity='.12'/%3E%3Cline x1='0' x2='380' y1='150' y2='150' stroke='%2394a3b8' stroke-opacity='.12'/%3E%3Crect x='274.0' y='0' width='106.0' height='180' fill='%2322d3ee' fill-opacity='.05'/%3E%3Crect x='0.2' y='146.8' width='15.7' height='25.2' fill='%23fbbf24' fill-opacity='0.16'/%3E%3Crect x='28.2' y='146.8' width='15.7' height='25.2' fill='%23fbbf24' fill-opacity='0.16'/%3E%3Crect x='56.2' y='141.8' width='15.7' height='30.2' fill='%23fbbf24' fill-opacity='0.16'/%3E%3Crect x='84.2' y='141.8' width='15.7' height='30.2' fill='%23fbbf24' fill-opacity='0.16'/%3E%3Crect x='112.2' y='141.8' width='15.7' height='30.2' fill='%23fbbf24' fill-opacity='0.16'/%3E%3Crect x='140.2' y='136.7' width='15.7' height='35.3' fill='%23fbbf24' fill-opacity='0.16'/%3E%3Crect x='168.2' y='136.7' width='15.7' height='35.3' fill='%23fbbf24' fill-opacity='0.16'/%3E%3Crect x='196.2' y='136.7' width='15.7' height='35.3' fill='%23fbbf24' fill-opacity='0.16'/%3E%3Crect x='224.2' y='131.7' width='15.7' height='40.3' fill='%23fbbf24' fill-opacity='0.16'/%3E%3Crect x='252.2' y='131.7' width='15.7' height='40.3' fill='%23fbbf24' fill-opacity='0.16'/%3E%3Crect x='280.2' y='130.0' width='15.7' height='42.0' fill='%23fbbf24' fill-opacity='0.3'/%3E%3Crect x='308.2' y='130.0' width='15.7' height='42.0' fill='%23fbbf24' fill-opacity='0.3'/%3E%3Crect x='336.2' y='128.3' width='15.7' height='43.7' fill='%23fbbf24' fill-opacity='0.3'/%3E%3Crect x='364.2' y='128.3' width='15.7' height='43.7' fill='%23fbbf24' fill-opacity='0.3'/%3E%3Cline x1='274.0' x2='274.0' y1='0' y2='180' stroke='%2322d3ee' stroke-opacity='.5' stroke-dasharray='3 4'/%3E%3Cpolygon points='260.0,56.9 288.0,45.8 316.0,33.3 344.0,22.2 372.0,9.7 372.0,54.1 344.0,55.5 316.0,55.5 288.0,56.9' fill='%2322d3ee' fill-opacity='.12'/%3E%3Cpolyline points='8.0,133.3 36.0,116.7 64.0,125.0 92.0,97.2 120.0,106.9 148.0,86.1 176.0,93.0 204.0,69.4 232.0,77.7 260.0,56.9' fill='none' stroke='%23b4c0d3' stroke-width='1.8' stroke-linejoin='round'/%3E%3Ccircle cx='8.0' cy='133.3' r='2' fill='%23b4c0d3'/%3E%3Ccircle cx='36.0' cy='116.7' r='2' fill='%23b4c0d3'/%3E%3Ccircle cx='64.0' cy='125.0' r='2' fill='%23b4c0d3'/%3E%3Ccircle cx='92.0' cy='97.2' r='2' fill='%23b4c0d3'/%3E%3Ccircle cx='120.0' cy='106.9' r='2' fill='%23b4c0d3'/%3E%3Ccircle cx='148.0' cy='86.1' r='2' fill='%23b4c0d3'/%3E%3Ccircle cx='176.0' cy='93.0' r='2' fill='%23b4c0d3'/%3E%3Ccircle cx='204.0' cy='69.4' r='2' fill='%23b4c0d3'/%3E%3Ccircle cx='232.0' cy='77.7' r='2' fill='%23b4c0d3'/%3E%3Ccircle cx='260.0' cy='56.9' r='2' fill='%23b4c0d3'/%3E%3Cpolyline points='260.0,56.9 288.0,51.3 316.0,44.4 344.0,38.8 372.0,31.9' fill='none' stroke='%2322d3ee' stroke-width='2' stroke-dasharray='6 4' stroke-linejoin='round'/%3E%3Ccircle cx='288.0' cy='51.3' r='3' fill='%230f1829' stroke='%2322d3ee' stroke-width='1.6'/%3E%3Ccircle cx='316.0' cy='44.4' r='3' fill='%230f1829' stroke='%2322d3ee' stroke-width='1.6'/%3E%3Ccircle cx='344.0' cy='38.8' r='3' fill='%230f1829' stroke='%2322d3ee' stroke-width='1.6'/%3E%3Ccircle cx='372.0' cy='31.9' r='3' fill='%230f1829' stroke='%2322d3ee' stroke-width='1.6'/%3E%3Cline x1='0' x2='380' y1='172.5' y2='172.5' stroke='%2394a3b8' stroke-opacity='.35'/%3E%3C/svg%3E\") center / contain no-repeat; }
     .hero h1 { color: #fff !important; font-weight: 600 !important; font-size: 2.4rem !important; text-transform: uppercase;
       letter-spacing: .04em !important; margin: 0 0 8px !important; text-shadow: 0 0 30px rgba(56, 189, 248, .35); }
-    .hero p { color: var(--ink-2) !important; font-size: 1rem !important; max-width: 640px; position: relative; }
-    .hero-chips { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 24px !important; position: relative; max-width: calc(100% - 200px); }
+    .hero p { color: var(--ink-2) !important; font-size: 1rem !important; max-width: min(640px, calc(100% - 360px)); position: relative; }
+    .hero-chips { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 24px !important; position: relative; }
     .hero-chip { display: inline-flex; align-items: center; gap: 8px; background: rgba(8, 14, 26, .6) !important;
       border: 1px solid var(--line-strong) !important; border-radius: var(--radius-sm) !important; color: var(--ink) !important;
       font-family: var(--mono); font-size: .75rem !important; font-weight: 500; letter-spacing: .03em;
@@ -359,7 +355,6 @@ app_style_css <- function() {
 
     @keyframes fadeUp  { from { transform: translateY(6px); } to { transform: none; } }
     @keyframes busyRun { 0% { left: -35%; } 100% { left: 100%; } }
-    @keyframes sweep   { to { transform: rotate(360deg); } }
 
     /* ---------- left sidebar (wide screens) ---------- */
     @media (min-width: 992px) {
@@ -418,6 +413,10 @@ app_style_css <- function() {
     @media (min-width: 576px) and (max-width: 991.98px) {
       .navbar .navbar-nav { flex-direction: row !important; flex-wrap: wrap; align-items: center; }
       .navbar .nav-link { padding: 8px 12px !important; }
+    }
+    @media (max-width: 1279.98px) {
+      .hero::after { display: none !important; }
+      .hero p, .hero-chips { max-width: 680px !important; }
     }
     /* phones */
     @media (max-width: 767.98px) {
