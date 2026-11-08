@@ -154,7 +154,8 @@ app_style_css <- function() {
     input[type=radio], input[type=checkbox] { accent-color: var(--accent); }
     .form-check-input, .radio input[type=radio], .checkbox input[type=checkbox] {
       background-color: var(--card) !important; border-color: var(--line-strong) !important; }
-    .form-check-input:checked { background-color: var(--accent) !important; border-color: var(--accent) !important; }
+    .form-check-input:checked, .radio input[type=radio]:checked, .checkbox input[type=checkbox]:checked {
+      background-color: var(--accent) !important; border-color: var(--accent) !important; }
     .form-check-input:focus { box-shadow: 0 0 0 3px var(--ring) !important; }
     .form-check-label, .radio label, .checkbox label { font-size: .875rem; color: var(--ink) !important; }
     .progress { height: 4px !important; border-radius: 2px !important; background: var(--line) !important; }
