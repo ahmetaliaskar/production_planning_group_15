@@ -295,7 +295,7 @@ app_style_css <- function() {
     .hero-chip { display: inline-flex; align-items: center; gap: 8px; background: rgba(255, 255, 255, .14) !important;
       border: 1px solid rgba(255, 255, 255, .28) !important; border-radius: 999px !important; color: #fff !important;
       font-size: .8rem !important; font-weight: 600; padding: 5px 13px !important; margin: 0 !important; }
-    .hero-chip .fa, .hero-chip svg { display: none; }
+    .hero-chip i, .hero-chip svg, .hero-chip .fa, .hero-chip .fas { display: none !important; }
     .hero-chip::before { content: ''; width: 8px; height: 8px; border-radius: 50%; flex: none; }
     .hero-chip:nth-child(1)::before { background: #67e8f9; }
     .hero-chip:nth-child(2)::before { background: #fbbf24; }
@@ -316,8 +316,8 @@ app_style_css <- function() {
       transition: transform .18s, box-shadow .18s; }
     .module-tile .app-icon svg { width: 38px; height: 38px; }
     .module-tile .app-icon .fa, .module-tile .app-icon i { font-size: 1.6rem; }
-    .module-tile h3 { font-size: .86rem !important; font-weight: 700 !important; margin: 0 !important; line-height: 1.25; color: var(--ink) !important; }
-    .module-tile .tag { margin: 3px 0 0 !important; font-size: .6rem !important; color: var(--muted) !important; letter-spacing: .08em; }
+    .home-card.module-tile h3 { font-size: .86rem !important; font-weight: 700 !important; margin: 0 !important; line-height: 1.25; color: var(--ink) !important; }
+    .home-card.module-tile .tag { margin: 3px 0 0 !important; font-size: .6rem !important; color: var(--muted) !important; letter-spacing: .08em; }
     .home-card.module-tile:hover { background: var(--soft) !important; }
     .module-tile:hover .app-icon { transform: translateY(-3px) scale(1.03); box-shadow: 0 12px 24px rgba(var(--accent-rgb), .38), inset 0 1px 0 rgba(255, 255, 255, .35); }
     .home-card.module-tile.open { background: var(--soft-2) !important; }
@@ -500,7 +500,7 @@ app_style_js <- function() {
           var open = t.classList.contains('open');
           b.classList.toggle('show', open);
           if (open) {
-            var hub = t.closest('.module-hub'), r = t.getBoundingClientRect(), h = hub.getBoundingClientRect();
+            var r = t.getBoundingClientRect(), h = b.getBoundingClientRect();
             b.style.setProperty('--branch-x', Math.round(r.left - h.left + r.width / 2) + 'px');
           }
         });
