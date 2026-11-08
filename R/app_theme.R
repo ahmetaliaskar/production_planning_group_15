@@ -332,10 +332,10 @@ fmt_num <- function(x, digits = 2) {
 #   modules: named list of groups -> c(button label = tab name); clicking the
 #            tile opens a panel below the tiles with these buttons.
 home_modules <- function() list(
-  list(key = "learning", title = "Learning Curve", tag = "Week 1",
+  list(key = "learning", glyph = "<svg viewBox=\"0 0 32 32\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.4\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M6 5v21h21\"/><path d=\"M9.5 8c1.6 7 5 12.5 14.5 13.5\"/><circle cx=\"9.8\" cy=\"9\" r=\"1.6\" fill=\"currentColor\"/><circle cx=\"13.6\" cy=\"16.2\" r=\"1.6\" fill=\"currentColor\"/><circle cx=\"20\" cy=\"20.6\" r=\"1.6\" fill=\"currentColor\"/></svg>", title = "Learning Curve", tag = "Week 1",
        items = list("Time per unit for a chosen learning rate"),
        goto = "Learning Curve", icon_name = "graduation-cap", theme = "theme-learn"),
-  list(key = "forecasting", title = "Forecasting", tag = "Assignment 2",
+  list(key = "forecasting", glyph = "<svg viewBox=\"0 0 32 32\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2.4\" stroke-linecap=\"round\" stroke-linejoin=\"round\"><path d=\"M4 22l4.5-5 4 3 5.5-8\"/><path d=\"M18 12l3.5-2.5 3 1.5 3.5-4\" stroke-dasharray=\"0.1 4.2\" stroke-width=\"3\"/><circle cx=\"18\" cy=\"12\" r=\"2.2\" fill=\"currentColor\"/><path d=\"M4 27h24\" opacity=\".55\"/></svg>", title = "Forecasting", tag = "Assignment 2",
        items = list("Moving average, weighted moving average, exponential smoothing",
                     "Seasonal factors and seasonal decomposition",
                     "Holt's and Winters' methods",
@@ -351,7 +351,7 @@ home_modules <- function() list(
          "Box-Jenkins" = c("AR" = "AR", "MA" = "MA", "ARMA" = "ARMA", "ARIMA" = "ARIMA"),
          "Comparison" = c("Compare Methods" = "Compare Methods")),
        icon_name = "chart-line", theme = "theme-forecast"),
-  list(key = "aggregate", title = "Aggregate Planning", tag = "Assignment 3",
+  list(key = "aggregate", glyph = "<svg viewBox=\"0 0 32 32\" fill=\"none\" stroke=\"currentColor\" stroke-linecap=\"round\"><path d=\"M7 26v-9M13 26V11M19 26v-8M25 26V8\" stroke-width=\"3.6\"/><path d=\"M4 14.5h24\" stroke-width=\"1.8\" stroke-dasharray=\"2.5 2.5\" opacity=\".85\"/></svg>", title = "Aggregate Planning", tag = "Assignment 3",
        items = list("Chase, level and mixed plans",
                     "Linear programming and the transportation method",
                     "Disaggregation with the square-root rule"),
@@ -371,15 +371,14 @@ home_modules <- function() list(
 # a tile without methods opens its tab directly.
 home_tile <- function(m) {
   has_methods <- !is.null(m$modules)
+  hint <- if (has_methods) "Click to see the methods" else "Click to open"
   div(class = paste("home-card module-tile clickable", m$theme, if (has_methods) "expandable"),
       `data-goto` = m$goto, `data-key` = m$key, tabindex = "0", role = "button",
-      div(class = "tile-top",
-          div(class = "home-icon", icon(m$icon_name)),
-          span(class = "card-arrow", if (has_methods) "\u25be" else "\u2192")),
-      div(class = "tag", m$tag),
+      title = paste(c(unlist(m$items), hint), collapse = "\n"),
+      div(class = "app-icon", if (!is.null(m$glyph)) HTML(m$glyph) else icon(m$icon_name)),
       h3(m$title),
-      if (!has_methods) div(class = "tile-sub", lapply(m$items, div)),
-      div(class = "card-hint", if (has_methods) "Click to see the methods" else "Click to open"))
+      div(class = "tag", m$tag),
+      span(class = "visually-hidden", paste(c(unlist(m$items), hint), collapse = ". ")))
 }
 
 # Panel that branches out below the tiles when a module tile is opened.
