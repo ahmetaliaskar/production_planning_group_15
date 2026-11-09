@@ -45,7 +45,8 @@ mixed_plan_ui <- function(id) {
     c("The workforce changes only in the chosen periods.", "\\(W_{block} = \\max_{t} \\dfrac{\\sum_{k=a}^{t} D'_k - I_{a-1}}{\\sum_{k=a}^{t} K\\, n_k}\\)"),
     checkboxGroupInput(ns("changes"),
                        "Periods in which the workforce changes (period 1 always changes)",
-                       choices = NULL)
+                       choices = NULL),
+    example = "mixed"
   )
 }
 
@@ -55,6 +56,7 @@ mixed_plan_ui <- function(id) {
 # ---------------------------------------------------------------------
 mixed_plan_server <- function(id, ap) {
   moduleServer(id, function(input, output, session) {
+    ap_example_observe(input, session, "mixed")
 
     # List the periods as check boxes when the data changes
     observeEvent(tryCatch(ap()$periods, error = function(e) NULL), {

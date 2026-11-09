@@ -204,8 +204,9 @@ series_input_ui <- function(id) {
 
 # Returns a reactive with the cleaned demand vector of the chosen column
 # (period names in attr(, "labels"), data notes in attr(, "notes")).
-# `example_column`: the column chosen when the example data is loaded.
-series_input_server <- function(id, example_column = "Seasonal") {
+# `example_column`: the column chosen when the example data is loaded;
+# `example_data`: the function that returns the example data of this tab.
+series_input_server <- function(id, example_column = "Seasonal", example_data = example_forecast_data) {
   moduleServer(id, function(input, output, session) {
     data <- reactiveVal(NULL)
     preferred <- reactiveVal(NULL)
@@ -227,7 +228,7 @@ series_input_server <- function(id, example_column = "Seasonal") {
     })
     observeEvent(input$example, {
       preferred(example_column)
-      data(example_forecast_data())
+      data(example_data())
       updateSelectInput(session, "dataset", selected = "")
     })
 

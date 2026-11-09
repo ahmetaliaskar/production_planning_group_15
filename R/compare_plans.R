@@ -27,6 +27,11 @@ compare_plans_table <- function(ap, results) {
   })
   tab <- do.call(rbind, rows)
   tab <- tab[order(tab$Total), ]
+  # how far each plan is above the LP optimum (the LP is a lower bound for all plans)
+  lp_total <- tab$Total[tab$Plan == "Linear programming plan"]
+  if (length(lp_total) == 1 && lp_total > 0) {
+    tab[["Above LP (%)"]] <- round(100 * (tab$Total - lp_total) / lp_total, 1)
+  }
   rownames(tab) <- NULL
   tab
 }
@@ -41,6 +46,16 @@ compare_plans_ui <- function(id) {
     sidebarPanel(
       formula_box(c("The total cost of every plan, side by side.",
                     "Whole-worker versions are compared.")),
+      helpText(strong("Why is the LP always the cheapest?"),
+               "The LP minimizes the same total cost over all plans; the chase, level",
+               "and mixed plans are just some of those plans. So they can tie with the LP",
+               "but never beat it. Which heuristic comes closest depends on the costs -",
+               "load an example to see it:"),
+      selectInput(ns("example_key"), NULL,
+                  choices = setNames(names(example_aggregate_scenarios()),
+                                     vapply(example_aggregate_scenarios(), `[[`, "", "label"))),
+      actionButton(ns("example"), "Load this example", icon = icon("table"),
+                   class = "btn-sm btn-outline-primary example-btn"),
       helpText("Each plan uses the settings of its own tab (LP options, transportation",
                "workforce, mixed-plan change periods). Data and costs come from",
                "the 'Data and Costs' tab.")
@@ -64,6 +79,9 @@ compare_plans_ui <- function(id) {
 # `plans` is a named list of the plan modules' results (see app.R).
 compare_plans_server <- function(id, ap, plans) {
   moduleServer(id, function(input, output, session) {
+    observeEvent(input$example, {
+      ap_example_signal(session)(list(key = input$example_key, time = Sys.time()))
+    })
 
     table <- reactive({
       a <- ap_require(ap)
@@ -113,7 +131,9 @@ compare_plans_server <- function(id, ap, plans) {
       tab$Plan <- ifelse(seq_len(nrow(tab)) == 1, paste("\u2605", tab$Plan), tab$Plan)
       # hide cost items that are zero for every plan
       zero <- vapply(tab, function(x) is.numeric(x) && all(abs(x) < 1e-9), logical(1))
-      tab[, !zero, drop = FALSE]
+      tab <- tab[, !zero, drop = FALSE]
+      if (!is.null(tab[["Above LP (%)"]])) tab[["Above LP (%)"]] <- format(tab[["Above LP (%)"]], nsmall = 1)
+      tab
     }, digits = 0)
 
     output$note <- renderText({

@@ -165,7 +165,8 @@ transportation_plan_ui <- function(id) {
       tableOutput(ns("nw_table")),
       h4(textOutput(ns("lc_title"))),
       tableOutput(ns("lc_table"))
-    )
+    ),
+    example = "transport"
   )
 }
 
@@ -175,14 +176,36 @@ transportation_plan_ui <- function(id) {
 # ---------------------------------------------------------------------
 transportation_plan_server <- function(id, ap) {
   moduleServer(id, function(input, output, session) {
+    ap_example_observe(input, session, "transport")
     num <- function(x) if (is.null(x) || is.na(x)) 0 else x
 
     # Default workforce: the level-plan workforce, i.e. the smallest constant
     # workforce that meets every period's demand on regular time alone
     # (so the transportation problem is always feasible). It is recomputed
     # whenever the demand, working days or K change; the user can edit it.
+    # An example can fix W (e.g. the transportation example). It is kept while
+    # the example's demand and K are in use; other data gets the default again.
+    example_W <- reactiveVal(NULL)
+    example <- ap_example_signal(session)
+    observeEvent(example(), {
+      sc <- example_aggregate_scenarios()[[example()$key]]
+      req(sc)
+      updateNumericInput(session, "ot_pct", value = sc$transport$ot_pct)
+      updateNumericInput(session, "sub_cap", value = sc$transport$sub_cap)
+      example_W(if (is.null(sc$transport$W)) NULL
+                else list(W = sc$transport$W, D = as.numeric(sc$data$Demand), K = sc$K))
+      # W of the example, or the level-plan workforce of the example's data
+      D <- sc$data$Demand; D[1] <- D[1] - sc$I0; D[length(D)] <- D[length(D)] + sc$IT
+      level_W <- ceiling(max(0, cumsum(D) / cumsum(sc$K * sc$data[["Working days"]])) - 1e-9)
+      updateNumericInput(session, "W", value = if (is.null(sc$transport$W)) level_W else sc$transport$W)
+    }, ignoreInit = TRUE)
+
     observeEvent(tryCatch(list(ap()$Dnet, ap()$days, ap()$K), error = function(e) NULL), {
-      updateNumericInput(session, "W", value = ceiling(level_plan_workers(ap()) - 1e-9))
+      a <- ap(); ex <- example_W()
+      same_data <- !is.null(ex) && length(a$D) == length(ex$D) && isTRUE(all.equal(a$D, ex$D))
+      if (!is.null(ex) && !same_data) example_W(NULL)
+      if (same_data && isTRUE(all.equal(a$K, ex$K))) updateNumericInput(session, "W", value = ex$W)
+      else updateNumericInput(session, "W", value = ceiling(level_plan_workers(a) - 1e-9))
     })
 
     solved <- reactive({

@@ -114,10 +114,9 @@ aggregate_data_server <- function(id) {
       updateSelectInput(session, "dataset", choices = c("(choose a dataset)" = "", names(lib())),
                         selected = res$added[1])
     })
+    # the example of this tab: Densepack with its costs (see example_aggregate_scenarios())
     observeEvent(input$example, {
-      data_rv(example_aggregate_data())
-      updateRadioButtons(session, "k_mode", selected = "past")
-      updateSelectInput(session, "dataset", selected = "")
+      ap_example_signal(session)(list(key = "densepack", time = Sys.time()))
     })
     observeEvent(lib(), {
       nms <- names(lib())
@@ -137,6 +136,36 @@ aggregate_data_server <- function(id) {
       req(s$target == "aggregate_data", s$name %in% names(lib()))
       updateSelectInput(session, "dataset", selected = s$name)
       data_rv(NULL); data_rv(lib()[[s$name]])
+    }, ignoreInit = TRUE)
+    # "Load this method's example" from a plan tab: data, costs, plant data and K
+    example <- ap_example_signal(session)
+    observeEvent(example(), {
+      sc <- example_aggregate_scenarios()[[example()$key]]
+      req(sc)
+      data_rv(sc$data)
+      updateSelectInput(session, "dataset", selected = "")
+      k <- sc$costs
+      updateNumericInput(session, "c_hire", value = k$hire)
+      updateNumericInput(session, "c_fire", value = k$fire)
+      updateNumericInput(session, "c_hold", value = k$hold)
+      updateNumericInput(session, "c_reg", value = k$reg)
+      updateNumericInput(session, "c_ot", value = k$ot)
+      updateNumericInput(session, "c_idle", value = k$idle)
+      updateNumericInput(session, "c_sub", value = k$sub)
+      updateNumericInput(session, "W0", value = sc$W0)
+      updateNumericInput(session, "I0", value = sc$I0)
+      updateNumericInput(session, "IT", value = sc$IT)
+      if (is.null(sc$k_past)) {
+        updateRadioButtons(session, "k_mode", selected = "direct")
+        updateNumericInput(session, "K", value = sc$K)
+      } else {
+        updateRadioButtons(session, "k_mode", selected = "past")
+        updateNumericInput(session, "past_units", value = sc$k_past[["units"]])
+        updateNumericInput(session, "past_workers", value = sc$k_past[["workers"]])
+        updateNumericInput(session, "past_days", value = sc$k_past[["days"]])
+      }
+      showNotification(paste0("Loaded: ", sc$label, ". The data and costs are in the 'Data and Costs' tab."),
+                       type = "message", duration = 6)
     }, ignoreInit = TRUE)
     data <- reactive({ req(data_rv()); data_rv() })
 
@@ -463,9 +492,11 @@ ap_with_rounding <- function(original, rounded_fn) {
 }
 
 # A complete page: the module's own controls on the left, results on the right.
-ap_page <- function(ns, explanation, ..., extra_main = NULL) {
+# `example`: key of this tab's example in example_aggregate_scenarios() (optional).
+ap_page <- function(ns, explanation, ..., extra_main = NULL, example = NULL) {
   sidebarLayout(
-    sidebarPanel(formula_box(explanation), ...,
+    sidebarPanel(formula_box(explanation),
+                 if (!is.null(example)) ap_example_box(ns, example), ...,
                  helpText("Data, costs, K and plant data come from the 'Data and Costs' tab.")),
     mainPanel(ap_results_ui(ns), extra_main)
   )

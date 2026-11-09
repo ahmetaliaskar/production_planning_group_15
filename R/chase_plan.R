@@ -21,7 +21,8 @@ chase_plan_workers <- function(ap) pmax(ap$Dnet, 0) / (ap$K * ap$days)
 # ---------------------------------------------------------------------
 chase_plan_ui <- function(id) {
   ns <- NS(id)
-  ap_page(ns, c("\\(W_t = \\dfrac{D'_t}{K\\, n_t}\\)", "Hire and fire every period; production = net demand."))
+  ap_page(ns, c("\\(W_t = \\dfrac{D'_t}{K\\, n_t}\\)", "Hire and fire every period; production = net demand."),
+          example = "chase")
 }
 
 
@@ -30,6 +31,7 @@ chase_plan_ui <- function(id) {
 # ---------------------------------------------------------------------
 chase_plan_server <- function(id, ap) {
   moduleServer(id, function(input, output, session) {
+    ap_example_observe(input, session, "chase")
     result <- reactive({
       a <- ap_require(ap)
       W <- chase_plan_workers(a)

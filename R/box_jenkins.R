@@ -127,7 +127,11 @@ box_jenkins_ui <- function(id, type = "ARIMA") {
 # ---------------------------------------------------------------------
 box_jenkins_server <- function(id, type = "ARIMA") {
   moduleServer(id, function(input, output, session) {
-    demand <- series_input_server("data", example_column = if (type == "ARIMA") "Trend" else "Stationary")
+    # each tab's example is a series simulated from that tab's model
+    demand <- series_input_server("data",
+                                  example_column = c(AR = "AR(1)", MA = "MA(1)", ARMA = "ARMA(1,1)",
+                                                     ARIMA = "ARIMA(1,1,0)")[[type]],
+                                  example_data = example_box_jenkins_data)
     include_mean <- reactive(if (type == "ARIMA") FALSE else isTRUE(input$mean))
     get_order <- function(name, default) {
       v <- input[[name]]

@@ -103,7 +103,8 @@ lp_plan_ui <- function(id) {
     conditionalPanel("input.allow_sub", ns = ns,
       numericInput(ns("sub_limit"), "Subcontracting limit per period (units, 0 = no limit)",
                    value = 0, min = 0)),
-    helpText("If an option has no cost entered (cost 0), the LP may use it for free.")
+    helpText("If an option has no cost entered (cost 0), the LP may use it for free."),
+    example = "lp"
   )
 }
 
@@ -113,6 +114,18 @@ lp_plan_ui <- function(id) {
 # ---------------------------------------------------------------------
 lp_plan_server <- function(id, ap) {
   moduleServer(id, function(input, output, session) {
+    ap_example_observe(input, session, "lp")
+    # every example also sets the LP options (so Compare Plans uses the right ones)
+    example <- ap_example_signal(session)
+    observeEvent(example(), {
+      o <- example_aggregate_scenarios()[[example()$key]]$lp
+      req(o)
+      updateCheckboxInput(session, "allow_ot", value = o$allow_ot)
+      updateNumericInput(session, "ot_limit", value = o$ot_limit)
+      updateCheckboxInput(session, "allow_idle", value = o$allow_idle)
+      updateCheckboxInput(session, "allow_sub", value = o$allow_sub)
+      updateNumericInput(session, "sub_limit", value = o$sub_limit)
+    }, ignoreInit = TRUE)
     num <- function(x) if (is.null(x) || is.na(x)) 0 else x
 
     result <- reactive({

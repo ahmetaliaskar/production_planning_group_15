@@ -47,7 +47,7 @@ seasonal_factors_ui <- function(id) {
 # ---------------------------------------------------------------------
 seasonal_factors_server <- function(id) {
   moduleServer(id, function(input, output, session) {
-    demand <- series_input_server("data", example_column = "Seasonal")
+    demand <- series_input_server("data", example_column = "Seasonal (no trend)")
     # season length N from the period names / dates (monthly -> 12, quarterly -> 4, ...)
     observeEvent(demand(), auto_season_length(session, demand(), input$N))
 
